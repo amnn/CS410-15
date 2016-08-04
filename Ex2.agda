@@ -152,7 +152,22 @@ VecApp n = record
 -- acts on the elements of the input once each, left-to-right
 
 VecTrav : forall n -> Traversable \X -> Vec X n
-VecTrav = {!!}
+VecTrav n = record
+  { traverse = vtrav {n}
+  } where
+    vtrav :
+         forall {m : Nat}
+      -> {F : Set -> Set}
+      ->  Applicative F
+      -> {A B : Set}
+      -> (A -> F B)
+      ->  Vec A m
+      ->  F (Vec B m)
+    vtrav {zero}  apF act xs = Applicative.pure apF []
+    vtrav {suc m} apF act (x :: xs) =
+      pure _::_ <*> act x <*> vtrav {m} apF act xs
+      where
+        open Applicative apF
 
 
 ----------------------------------------------------------------------------
