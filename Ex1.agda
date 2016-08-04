@@ -71,8 +71,8 @@ mySet = Set
 ----------------------------------------------------------------------------
 
 _+N_ : Nat -> Nat -> Nat
-m +N zero = zero
-m +N suc n = {!!}
+m +N zero  = m
+m +N suc n = suc (m +N n)
 infixr 3 _+N_
 
 -- NOTATION: a name _+N_ with underscores in it serves double duty.
@@ -103,7 +103,8 @@ testPlus3 = refl
 ----------------------------------------------------------------------------
 
 _*N_ : Nat -> Nat -> Nat
-m *N n  =  {!!}
+m *N zero = zero
+m *N suc n = m +N m *N n
 infixr 4 _*N_
 
 -- unit tests
@@ -136,7 +137,9 @@ testMult6 = refl
 ----------------------------------------------------------------------------
 
 _-N1_ : Nat -> Nat -> Nat
-m -N1 n  =  {!!}
+m     -N1 zero  = m
+zero  -N1 suc n = zero
+suc m -N1 suc n = m -N1 n
 
 -- unit tests
 {-+}
@@ -167,7 +170,9 @@ data Maybe (X : Set) : Set where
 ----------------------------------------------------------------------------
 
 _-N2_ : Nat -> Nat -> Maybe Nat
-m -N2 n  =  {!!}
+m     -N2 zero  = yes m
+zero  -N2 suc n = no
+suc m -N2 suc n = m -N2 n
 
 -- unit tests
 {-+}
@@ -205,7 +210,9 @@ suc m  N>=  suc n  =  m N>= n  -- the way to compare successors
 ----------------------------------------------------------------------------
 
 _-N3_-:_ : (m : Nat) -> (n : Nat) -> m N>= n -> Nat
-m -N3 n -: p  = {!!}
+m     -N3 zero  -: <> = m
+zero  -N3 suc n -: ()
+suc m -N3 suc n -: p  = m -N3 n -: p
 
 -- DON'T PANIC about the syntax (m : Nat) -> (n : Nat) ->
 -- The type of both those arguments is Nat. However, when we write the
