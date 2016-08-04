@@ -267,7 +267,8 @@ Matrix X (h , w) = Vec (Vec X w) h
 -- []
 
 idMat : forall {n} -> Matrix Nat (n , n)
-idMat = {!!}
+idMat {zero} = []
+idMat {suc n} = (1 :: vec 0) :: vapp (vec (_::_ 0)) (idMat {n})
 
 -- HINT: you may need to do recursion on the side, but then you
 -- can make good use of vec and vapp
@@ -281,7 +282,7 @@ idMat = {!!}
 -- HINT: use traverse, and it's a one-liner
 
 transpose : forall {X m n} -> Matrix X (m , n) -> Matrix X (n , m)
-transpose = {!!}
+transpose {X} {m} {n} = Traversable.traverse (VecTrav m) (VecApp n) id
 
 
 ----------------------------------------------------------------------------
@@ -290,7 +291,14 @@ transpose = {!!}
 
 -- implement matrix multiplication
 -- HINT: transpose and vdot can be useful
+matMult :
+     forall {m n p}
+  -> Matrix Nat (m , n)
+  -> Matrix Nat (n , p)
+  -> Matrix Nat (m , p)
 
-matMult : forall {m n p} ->
-          Matrix Nat (m , n) -> Matrix Nat (n , p) -> Matrix Nat (m , p)
-matMult xmn xnp = {!!}
+matMult {m} {n} {p} xmn xnp = vmap build-row xmn
+  where
+    build-row : Vec Nat n -> Vec Nat p
+    build-row row = pure (vdot row) <*> (transpose xnp)
+      where open Applicative (VecApp p)
