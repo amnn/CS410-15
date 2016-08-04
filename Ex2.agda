@@ -16,7 +16,7 @@ module Ex2 where
 open import CS410-Prelude
 open import CS410-Monoid
 open import CS410-Nat
-open import CS410-Vec
+open import CS410-Vec hiding (vec; vapp)
 open import CS410-Functor
 
 -- HINT: your tasks are heralded with the eminently searchable tag, "???"
@@ -72,7 +72,7 @@ vzip xs ys = {!!}
 
 data Unzippable {X Y n} : Vec (X * Y) n -> Set where
   unzipped : {- some stuff -> -} Unzippable {!!}
-  
+
 unzip : forall {X Y n}(xys : Vec (X * Y) n) -> Unzippable xys
 unzip xys = {!!}
 
