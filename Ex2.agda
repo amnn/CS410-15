@@ -27,7 +27,8 @@ open import CS410-Functor
 ----------------------------------------------------------------------------
 
 vec : forall {n X} -> X -> Vec X n
-vec x = {!!}
+vec {zero}  x = []
+vec {suc n} x = x :: vec {n} x
 
 -- HINT: you may need to override default invisibility
 
@@ -44,7 +45,8 @@ vec x = {!!}
 
 vapp : forall {n X Y} ->
        Vec (X -> Y) n -> Vec X n -> Vec Y n
-vapp fs xs = {!!}
+vapp  []        []       = []
+vapp (f :: fs) (x :: xs) = f x :: vapp fs xs
 
 
 ----------------------------------------------------------------------------
@@ -55,10 +57,10 @@ vapp fs xs = {!!}
 -- no pattern matching or recursion permitted
 
 vmap : forall {n X Y} -> (X -> Y) -> Vec X n -> Vec Y n
-vmap f xs = {!!}
+vmap f xs = vapp (vec f) xs
 
 vzip : forall {n X Y} -> Vec X n -> Vec Y n -> Vec (X * Y) n
-vzip xs ys = {!!}
+vzip xs ys = vapp (vmap _,_ xs) ys
 
 
 ----------------------------------------------------------------------------
