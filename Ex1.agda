@@ -274,7 +274,8 @@ infixr 3 _::_
 ----------------------------------------------------------------------------
 
 _+L_ : {X : Set} -> List X -> List X -> List X
-xs +L ys  =  {!!}
+[] +L ys = ys
+(x :: xs) +L ys = x :: xs +L ys
 infixr 3 _+L_
 
 -- DON'T PANIC about the "curly braces" syntax. It's very similar to the
@@ -312,7 +313,9 @@ testConcL = refl
 ----------------------------------------------------------------------------
 
 mis-take : {X : Set} -> Nat -> List X -> List X
-mis-take n xs  =  {!!}
+mis-take  zero   xs        = []
+mis-take (suc n) []        = []
+mis-take (suc n) (x :: xs) = x :: mis-take n xs
 
 -- unit test
 {-+}
@@ -333,7 +336,11 @@ testMisTake = refl
 ----------------------------------------------------------------------------
 
 may-take : {X : Set} -> Nat -> List X -> Maybe (List X)
-may-take n xs  =  {!!}
+may-take  zero   xs = yes []
+may-take (suc n) [] = no
+may-take (suc n) (x :: xs) with may-take n xs
+may-take (suc n) (x :: xs) | yes xs₁ = yes (x :: xs₁)
+may-take (suc n) (x :: xs) | no      = no
 
 -- unit test
 {-+}
@@ -358,7 +365,8 @@ testMayTake3 = refl
 -- Show how to compute the length of a list.
 
 length : {X : Set} -> List X -> Nat
-length xs = {!!}
+length [] = 0
+length (x :: xs) = suc (length xs)
 
 -- unit test
 {-+}
