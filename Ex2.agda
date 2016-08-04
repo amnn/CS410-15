@@ -219,9 +219,16 @@ MonCon {A} M = record
 -- show how to compute the result of combining all the elements of a vector
 -- when they belong to some monoid.
 
-vcombine : forall {X} -> Monoid X ->
-           forall {n} -> Vec X n -> X
-vcombine M = {!!}
+vcombine :
+     forall {X}
+  -> Monoid X
+  -> forall {n}
+  -> Vec X n
+  -> X
+
+vcombine M {n} = traverse (MonCon M) {_} {One} id
+  where
+    open Traversable (VecTrav n)
 
 
 ----------------------------------------------------------------------------
@@ -233,7 +240,9 @@ vcombine M = {!!}
 -- HINT: think zippily, then combine
 
 vdot : forall {n} -> Vec Nat n -> Vec Nat n -> Nat
-vdot xs ys = {!!}
+vdot {n} xs ys = vcombine +Mon (pure _*N_ <*> xs <*> ys)
+  where open Applicative (VecApp n)
+
 
 
 ----------------------------------------------------------------------------
