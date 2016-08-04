@@ -163,6 +163,7 @@ VecTrav n = record
       -> (A -> F B)
       ->  Vec A m
       ->  F (Vec B m)
+
     vtrav {zero}  apF act xs = Applicative.pure apF []
     vtrav {suc m} apF act (x :: xs) =
       pure _::_ <*> act x <*> vtrav {m} apF act xs
@@ -177,14 +178,37 @@ VecTrav n = record
 -- Show that every monoid gives rise to a degenerate applicative functor
 
 MonCon : forall {X} -> Monoid X -> Applicative \_ -> X
-MonCon M = record
-             { pure          = {!!}
-             ; _<*>_         = op
-             ; identity      = {!!}
-             ; composition   = {!!}
-             ; homomorphism  = {!!}
-             ; interchange   = {!!}
-             } where open Monoid M
+MonCon {A} M = record
+  { pure          = \ _ -> e
+  ; _<*>_         = op
+  ; identity      = lunit
+  ; composition   = Composition-Law
+  ; homomorphism  = \ _ _ -> sym (lunit e)
+  ; interchange   = Interchange-Law
+  } where
+    open Monoid M
+
+    Composition-Law :
+         (u v w : A)
+      -> op (op (op e u) v) w
+      == op u (op v w)
+
+    Composition-Law u v w
+      rewrite lunit u
+            | assoc u v w
+      = refl
+
+    Interchange-Law :
+         forall {X : Set}
+      -> (u : A)
+      -> X
+      -> op u e
+      == op e u
+
+    Interchange-Law u _
+      rewrite lunit u
+            | runit u
+      = refl
 
 
 ----------------------------------------------------------------------------
