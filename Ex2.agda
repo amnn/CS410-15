@@ -73,10 +73,12 @@ vzip xs ys = vapp (vmap _,_ xs) ys
 -- you'll need to complete the view type yourself
 
 data Unzippable {X Y n} : Vec (X * Y) n -> Set where
-  unzipped : {- some stuff -> -} Unzippable {!!}
+  unzipped : (xs : Vec X n) -> (ys : Vec Y n) -> Unzippable (vzip xs ys)
 
 unzip : forall {X Y n}(xys : Vec (X * Y) n) -> Unzippable xys
-unzip xys = {!!}
+unzip  []                                       = unzipped [] []
+unzip (x , y :: xys)           with unzip xys
+unzip (x , y :: .(vzip xs ys)) | unzipped xs ys = unzipped (x :: xs) (y :: ys)
 
 
 ----------------------------------------------------------------------------
@@ -89,13 +91,58 @@ VecApp : forall n -> Applicative \X -> Vec X n
 VecApp n = record
   { pure         = vec
   ; _<*>_        = vapp
-  ; identity     = {!!}
-  ; composition  = {!!}
-  ; homomorphism = {!!}
-  ; interchange  = {!!}
+  ; identity     = Identity-Law
+  ; composition  = Composition-Law
+  ; homomorphism = Homomorphism-Law
+  ; interchange  = Interchange-Law
   } where
-  -- lemmas go here
+    Identity-Law :
+         forall {n X}
+      -> (v : Vec X n)
+      -> vapp (vec id) v
+      == v
 
+    Identity-Law [] = refl
+    Identity-Law (x :: xs)
+      rewrite Identity-Law xs
+      = refl
+
+    Composition-Law :
+         forall {n X Y Z}
+      -> (fs : Vec (Y -> Z) n)
+      -> (gs : Vec (X -> Y) n)
+      -> (xs : Vec  X       n)
+      ->  vapp (vapp (vapp (vec \ f g x -> f (g x)) fs) gs) xs
+      ==  vapp fs (vapp gs xs)
+
+    Composition-Law [] [] [] = refl
+    Composition-Law (f :: fs) (g :: gs) (x :: xs)
+      rewrite Composition-Law fs gs xs
+      = refl
+
+    Homomorphism-Law :
+         forall {n X Y}
+      -> (f : X -> Y)
+      -> (x : X)
+      ->  vec {n} (f x)
+      ==  vapp (vec f) (vec x)
+
+    Homomorphism-Law {zero}  f x = refl
+    Homomorphism-Law {suc n} f x
+      rewrite Homomorphism-Law {n} f x
+      = refl
+
+    Interchange-Law :
+         forall {n X Y}
+      -> (fs : Vec (X -> Y) n)
+      -> (x  : X)
+      -> vapp fs (vec x)
+      == vapp (vec \ f -> f x) fs
+
+    Interchange-Law [] x = refl
+    Interchange-Law (f :: fs) x
+      rewrite Interchange-Law fs x
+      = refl
 
 ----------------------------------------------------------------------------
 -- ??? 2.6 vectors are traversable                            (score: ? / 1)
