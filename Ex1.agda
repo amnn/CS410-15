@@ -71,8 +71,8 @@ mySet = Set
 ----------------------------------------------------------------------------
 
 _+N_ : Nat -> Nat -> Nat
-m +N zero  = m
-m +N suc n = suc (m +N n)
+zero  +N n = n
+suc m +N n = suc (m +N n)
 infixr 3 _+N_
 
 -- NOTATION: a name _+N_ with underscores in it serves double duty.
@@ -386,6 +386,7 @@ testLength  =  refl
 data Vec (X : Set) : (n : Nat) -> Set where -- n's not in scope after "where"
   []    : Vec X zero                                  -- it's zero here,...
   _::_  : {n : Nat} -> X -> Vec X n -> Vec X (suc n)  -- ...successor, there
+infixr 3 _::_
 
 -- DON'T PANIC
 -- Vec X is not a Set, but rather an INDEXED FAMILY of sets. For each n in
@@ -412,7 +413,8 @@ data Vec (X : Set) : (n : Nat) -> Set where -- n's not in scope after "where"
 -- When we concatenate vectors, we add their lengths.
 
 _+V_ : {X : Set}{m n : Nat} -> Vec X m -> Vec X n -> Vec X (m +N n)
-xs +V ys  = {!!}
+[]        +V ys = ys
+(x :: xs) +V ys = x :: (xs +V ys)
 infixr 3 _+V_
 
 -- NOTICE that even though m and n are numbers, not types, they can
@@ -439,12 +441,14 @@ testConcV = refl
 -- Now we know the lengths, we can give a PRECONDITION for taking.
 
 take : {X : Set}{m : Nat}(n : Nat) -> m N>= n -> Vec X m -> Vec X n
-take n p xs = {!!}
+take  zero   <>  xs       = []
+take (suc n) ()  []
+take (suc n) p  (x :: xs) = x :: take n p xs
 
 -- unit test
 {-+}
-testTake1  :  take 3 <> (0 :: 1 :: 2 :: 3 :: 4 :: [])
-              ==         0 :: 1 :: 2 :: []
+testTake1  :  (take 3 <> (0 :: 1 :: 2 :: 3 :: 4 :: []))
+              ==         (0 :: 1 :: 2 :: [])
 testTake1 = refl
 
 testTake3  :  take 5 <> (0 :: 1 :: 2 :: 3 :: 4 :: [])
@@ -476,7 +480,9 @@ data Choppable {X : Set}(m n : Nat) : Vec X (m +N n) -> Set where
 ----------------------------------------------------------------------------
 
 chop : {X : Set}(m n : Nat)(xs : Vec X (m +N n)) -> Choppable m n xs
-chop m n xs = {!!}
+chop  zero   n  xs                               = chopTo [] xs
+chop (suc m) n (x :: xs)          with chop m n xs
+chop (suc m) n (x :: .(xs +V ys)) | chopTo xs ys = chopTo (x :: xs) ys
 
 -- DON'T PANIC if you can't pattern match on the vector right away, because
 -- the fact is that without looking at WHERE TO CHOP, you don't know if you
