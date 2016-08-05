@@ -454,8 +454,10 @@ evalStack g = eval (fetch g)
 -- the other expression formers?
 
 data HExp' (X : Set) : Set where
-  []+H_ _+H[] : HExp X -> HExp' X
+  []+H_ _+H[] []>=H_ _>=H[]                       : HExp X -> HExp' X
+  ifH[]then_else_ ifH_then[]else_ ifH_then_else[] : HExp X -> HExp X -> HExp' X
   -- ??? more constructors here
+
   -- specifically, you will need a constructor for each way that a
   -- subexpression can fit inside an expression;
   -- we use the naming convention of showing where the "hole" is
@@ -464,9 +466,14 @@ data HExp' (X : Set) : Set where
 -- take a expression with a hole, and a expression to plug in and plug
 -- it in!
 _[]<-_ : forall {X} -> HExp' X -> HExp X -> HExp X
-([]+H r) []<- t = t +H r
-(l +H[]) []<- t = l +H t
--- ??? more cases here
+([]+H r)  []<- t = t +H r
+(l +H[])  []<- t = l +H t
+([]>=H r) []<- t = t >=H r
+(l >=H[]) []<- t = l >=H t
+
+ifH[]then e₁ else e₂ []<- t = ifH t then e₁ else e₂
+ifH e then[]else e₂  []<- t = ifH e then t  else e₂
+ifH e then e₁ else[] []<- t = ifH e then e₁ else t
 
 {-
 data List (X : Set) : Set where  -- X scopes over the whole declaration...
@@ -504,9 +511,24 @@ rootToHole (t' :: t's) t = t' []<- rootToHole t's t
 -- untyped term (HExp Y) if we know how to forget types from variables
 -- (varFog).
 
-termFog : {X : HType -> Set}{Y : Set}(varFog : {T : HType} -> X T -> Y) ->
-          {T : HType} -> THExp X T -> HExp Y
-termFog vF t = {!!}
+termFog :
+     {X      : HType -> Set} {Y : Set}
+     (varFog : {T : HType} -> X T -> Y)
+  -> {T      : HType}
+  ->  THExp X T
+  ->  HExp Y
+
+termFog vF (var x) = var (vF x)
+termFog vF (val v) = val (valFog v)
+  where
+    valFog : forall {T : HType} -> THVal T -> Two + Nat
+    valFog {hTwo} b = tt , b
+    valFog {hNat} n = ff , n
+
+termFog vF (t +H t₁)  = termFog vF t +H termFog vF t₁
+termFog vF (t >=H t₁) = termFog vF t >=H termFog vF t₁
+termFog vF (ifH t then t₁ else t₂) =
+  ifH (termFog vF t) then (termFog vF t₁) else (termFog vF t₂)
 
 -- Note that it's a local naming convention to call functions which
 -- forget information "fog". When it is foggy, you can see less.
