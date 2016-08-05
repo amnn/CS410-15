@@ -29,10 +29,10 @@ HVal : Set   -- the set of *values* for Hutton's Razor
 HVal = Two + Nat   -- Booleans or natural numbers
 
 data HExp (X : Set) : Set where
-  var        : X -> HExp X                  -- variables
-  val        : HVal -> HExp X               -- values
-  _+H_ _>=H_ : (e1 e2 : HExp X) -> HExp X   -- addition, comparison
-  ifH_then_else_ : (e1 e2 e3 : HExp X) -> HExp X  -- conditional
+  var            : (x : X)             -> HExp X -- variables
+  val            : (v : HVal)          -> HExp X -- values
+  _+H_ _>=H_     : (e1 e2 : HExp X)    -> HExp X -- addition, comparison
+  ifH_then_else_ : (e1 e2 e3 : HExp X) -> HExp X -- conditional
 
 _>=2_ : Nat -> Nat -> Two
 x      >=2  zero   = tt
@@ -48,7 +48,86 @@ suc m  >=2  suc n  = m >=2 n
 -- simultaneous substitution (transforming all the variables in a term).
 
 hExpMonad : Monad HExp
-hExpMonad = {!!}
+hExpMonad = record
+  { return = var
+  ; _>>=_  = subst
+  ; law1   = Left-Identity-Law
+  ; law2   = Right-Identity-Law
+  ; law3   = Associativity-Law
+  } where
+
+    subst :
+         forall {X Y}
+      ->  HExp X
+      -> (X -> HExp Y)
+      ->  HExp Y
+
+    subst (var x)               f = f x
+    subst (val x)               f = val x
+    subst (m +H n)              f = subst m f +H  subst n f
+    subst (b >=H c)             f = subst b f >=H subst c f
+    subst (ifH c then t else e) f = ifH subst c f then subst t f else subst e f
+
+    Left-Identity-Law :
+         forall {X Y}
+      -> (x : X)
+      -> (f : X -> HExp Y)
+      ->  subst (var x) f
+      ==  f x
+
+    Left-Identity-Law _ _ = refl
+
+    Right-Identity-Law :
+         forall {X}
+      -> (exp : HExp X)
+      ->  subst exp var
+      ==  exp
+
+    Right-Identity-Law (var x) = refl
+    Right-Identity-Law (val v) = refl
+
+    Right-Identity-Law (exp +H exp₁)
+      rewrite Right-Identity-Law exp
+            | Right-Identity-Law exp₁
+      = refl
+
+    Right-Identity-Law (exp >=H exp₁)
+      rewrite Right-Identity-Law exp
+            | Right-Identity-Law exp₁
+      = refl
+
+    Right-Identity-Law (ifH exp then exp₁ else exp₂)
+      rewrite Right-Identity-Law exp
+            | Right-Identity-Law exp₁
+            | Right-Identity-Law exp₂
+      = refl
+
+    Associativity-Law :
+         forall {X Y Z}
+      -> (f   : X -> HExp Y)
+      -> (g   : Y -> HExp Z)
+      -> (exp : HExp X)
+      ->  subst (subst exp f) g
+      ==  subst exp (\ x -> subst (f x) g)
+
+    Associativity-Law f g (var x) = refl
+    Associativity-Law f g (val v) = refl
+
+    Associativity-Law f g (exp +H exp₁)
+      rewrite Associativity-Law f g exp
+            | Associativity-Law f g exp₁
+      = refl
+
+    Associativity-Law f g (exp >=H exp₁)
+      rewrite Associativity-Law f g exp
+            | Associativity-Law f g exp₁
+      = refl
+
+    Associativity-Law f g (ifH exp then exp₁ else exp₂)
+      rewrite Associativity-Law f g exp
+            | Associativity-Law f g exp₁
+            | Associativity-Law f g exp₂
+      = refl
 
 
 ----------------------------------------------------------------------------
@@ -59,7 +138,49 @@ hExpMonad = {!!}
 -- some sort of error report
 
 errorMonad : (E : Set) -> Monad \ V -> V + E   -- "value or error"
-errorMonad E = {!!}
+errorMonad E = record
+  { return = \ v -> tt , v
+  ; _>>=_  = bind
+  ; law1   = Left-Identity-Law
+  ; law2   = Right-Identity-Law
+  ; law3   = Associativity-Law
+  } where
+    bind :
+         forall {X Y}
+      ->  X + E
+      -> (X -> Y + E)
+      ->  Y + E
+    bind (tt , x) f = f x
+    bind (ff , e) f = ff , e
+
+    Left-Identity-Law :
+         forall {X Y}
+      -> (x : X)
+      -> (f : X -> Y + E)
+      -> bind (tt , x) f
+      == f x
+
+    Left-Identity-Law _ _ = refl
+
+    Right-Identity-Law :
+         forall {X}
+      -> (m : X + E)
+      ->  bind m (\ v -> tt , v)
+      ==  m
+
+    Right-Identity-Law (tt , snd) = refl
+    Right-Identity-Law (ff , snd) = refl
+
+    Associativity-Law :
+         forall {X Y Z}
+      -> (f : X -> Y + E)
+      -> (g : Y -> Z + E)
+      -> (m : X + E)
+      ->  bind (bind m f) g
+      ==  bind m (\ x -> bind (f x) g)
+
+    Associativity-Law f g (tt , x) = refl
+    Associativity-Law f g (ff , e) = refl
 
 
 ----------------------------------------------------------------------------
