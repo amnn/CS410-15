@@ -87,7 +87,9 @@ WriteR .opened closeWrite            = One  -- always works
    closes its file. -}
 
 writeNext : (j : WriteState)(c : WriteC j) -> WriteR j c -> WriteState
-writeNext j c r = {!!}
+writeNext .closed (openWrite _) r  = r
+writeNext .opened (writeChar x) <> = opened
+writeNext .opened  closeWrite   <> = closed
 
 -- the file writing interface, assembled as an indexed container
 WRITE : WriteState => WriteState
@@ -110,19 +112,21 @@ data ReadState : Set where
 
 -- Commands
 data ReadC : ReadState -> Set where
-  openRead    : {- your stuff -} ReadC {!!}   -- needs a filename; might not open successfully;
-                                              -- might open an empty file
-  readChar    : {- your stuff -} ReadC {!!}   -- makes sense only if we're not at end of file
-                                              -- and might take us to end of file
-  closeRead   : {- your stuff -} ReadC {!!}   -- makes sense only if the file is open
+  openRead    : (fileName : String) -> ReadC  closed
+  readChar    :                        ReadC (opened ff)
+  closeRead   : {eof : Two}         -> ReadC (opened eof)
 
 -- Responses
 ReadR : (j : ReadState)(c : ReadC j) -> Set
-ReadR j c = {!!}
+ReadR .closed      (openRead _) = ReadState
+ReadR .(opened ff)  readChar    = Char * Two
+ReadR ._            closeRead   = One
 
 -- next State; you need to make sure the response gives enough info
 readNext : (j : ReadState)(c : ReadC j) -> ReadR j c -> ReadState
-readNext j c r = {!!}
+readNext .closed      (openRead _)  r        = r
+readNext .(opened ff)  readChar    (_ , eof) = opened eof
+readNext ._            closeRead    <>       = closed
 
 READ : ReadState => ReadState
 READ = ReadC <! ReadR / readNext
@@ -141,7 +145,22 @@ READ = ReadC <! ReadR / readNext
 -}
 
 _=+=_ : {I : Set} -> I => I -> I => I -> I => I
-CRn0 =+= CRn1 = {!!}
+(C <! R / n) =+= (C₁ <! R₁ / n₁) =
+     (C +: C₁)
+  <!  R'
+   /  n'
+  where
+    R' : (st : _) -> (C +: C₁) st -> Set
+    R' st (tt , c)  = R  st c
+    R' st (ff , c₁) = R₁ st c₁
+
+    n' :
+         (st : _)
+      -> (c  : (C +: C₁) st)
+      ->  R' st c
+      ->  _
+    n' st (tt , c)  r  = n  st c  r
+    n' st (ff , c₁) r₁ = n₁ st c₁ r₁
 
 
 ---------------------------------------------------------------------------
@@ -156,12 +175,30 @@ CRn0 =+= CRn1 = {!!}
        things. -}
 
 GrowR : {I J : Set} -> I => I -> (I * J) => (I * J)
-GrowR CRn = {!!}
+GrowR {I} {J} (C <! R / n) = C' <! R' / n'
+  where
+    C' : I * J -> Set
+    C' (i , _) = C i
+
+    R' : (st : I * J) -> (C' st) -> Set
+    R' (i , _) c = R i c
+
+    n' : (st : I * J) -> (c : C' st) -> R' st c -> I * J
+    n' (i , j) c r = (n i c r) , j
 
 -- do the same for "growing the index on the left"
 
 GrowL : {I J : Set} -> I => I -> (J * I) => (J * I)
-GrowL CRn = {!!}
+GrowL {I} {J} (C <! R / n) = C' <! R' / n'
+  where
+    C' : J * I -> Set
+    C' (_ , i) = C i
+
+    R' : (st : J * I) -> (C' st) -> Set
+    R' (_ , i) c = R i c
+
+    n' : (st : J * I) -> (c : C' st) -> R' st c -> J * I
+    n' (j , i) c r = j , (n i c r)
 
 
 ---------------------------------------------------------------------------
@@ -174,7 +211,7 @@ GrowL CRn = {!!}
 -}
 
 _<+>_ : {I0 I1 : Set} -> I0 => I0 -> I1 => I1 -> (I0 * I1) => (I0 * I1)
-CRn0 <+> CRn1 = {!!}
+CRn0 <+> CRn1 = GrowR CRn0 =+= GrowL CRn1
 
 
 ---------------------------------------------------------------------------
@@ -231,20 +268,99 @@ ERROR SafeMessage = ErrorC SafeMessage <! ErrorR / errorNext
 -}
 
 CPState : Set
-CPState = {!!}
+CPState = WriteState * ReadState
+
+FinalState : CPState -> Set
+FinalState (opened , _)        = Zero
+FinalState (closed , opened _) = Zero
+FinalState (closed , closed)   = One
 
 CPInterface : CPState => CPState
-CPInterface = {!!}
+CPInterface = (WRITE <+> READ) =+= ERROR FinalState
 
 {- 4.6.2 Secondly, you should implement your copying process, working to your
    interface.
 -}
 
-FinalState : CPState -> Set
-FinalState c = {!!}
+cp : (sourceFile targetFile : String) -> IterIx CPInterface FinalState (closed , closed)
+cp sourceFile targetFile =
+  req (reader-open sourceFile)
+ (check-reader-open!
+ (req (writer-open sourceFile)
+ (check-writer-open!
+  make-transfer)))
+  where
+    open _=>_ CPInterface
+      renaming ( Shape    to C
+               ; Position to R
+               ; index    to n
+               )
 
-cp : (sourceFile targetFile : String) -> IterIx CPInterface FinalState {!!}
-cp sourceFile targetFile = {!!}
+    open MonadIx (iterMonadIx CPInterface)
+
+    req :
+         {st  : CPState}
+      -> (cmd : C st)
+      -> (k   : (r : R st cmd) -> IterIx CPInterface FinalState (n st cmd r))
+      ->  IterIx CPInterface FinalState st
+
+    req cmd k = step (do (cmd , k))
+
+
+    -- Reader/Writer/Error commands wrapped up in the CPInterface
+    reader-open : forall {ws} -> String -> C (ws , closed)
+    reader-open src = tt , ff , openRead src
+
+    writer-open : forall {rs} -> String -> C (closed , rs)
+    writer-open src = tt , tt , openWrite src
+
+    reader-close : forall {ws eof} -> C (ws , opened eof)
+    reader-close = tt , ff , closeRead
+
+    writer-close : forall {rs} -> C (opened , rs)
+    writer-close  = tt , tt , closeWrite
+
+    read : forall {ws} -> C (ws , opened ff)
+    read = tt , ff , readChar
+
+    write : forall {st} -> Char -> C (opened , st)
+    write c = tt , tt , writeChar c
+
+    throw! : C (closed , closed)
+    throw! = ff , error <>
+
+    check-reader-open! :
+         (forall {eof} -> IterIx CPInterface FinalState (closed , opened eof))
+      -> (rs : ReadState)
+      ->  IterIx CPInterface FinalState (closed , rs)
+
+    check-reader-open! act (opened eof) = act
+    check-reader-open! act  closed      = req throw! \()
+
+    check-writer-open! :
+          forall {eof}
+      ->  IterIx CPInterface FinalState (opened , opened eof)
+      -> (ws : WriteState)
+      ->  IterIx CPInterface FinalState (ws , opened eof)
+
+    check-writer-open! act opened = act
+    check-writer-open! act closed =
+      req reader-close \ _ ->
+      req throw! \()
+
+    make-transfer :
+         forall {eof}
+      -> IterIx CPInterface FinalState (opened , opened eof)
+
+    make-transfer {ff} =
+      req read              \ res ->
+      req (write (fst res)) \ _   ->
+      make-transfer
+
+    make-transfer {tt} =
+      req reader-close \ _ ->
+      req writer-close \ _ ->
+      step (ret <>)
 
 {- HINTS
   You will certainly need to build some extra bits and pieces.
@@ -261,7 +377,7 @@ cp sourceFile targetFile = {!!}
 -}
 
 ---------------------------------------------------------------
--- TO BE CONTINUED... 
+-- TO BE CONTINUED...
 ---------------------------------------------------------------
 
 -- The rest of the exercise is to fill selected gaps in code that
@@ -292,7 +408,7 @@ Driver :
   (Hi : I => I)            -- high-level command-response system
   (Lo : J => J)            -- low-level command-response system
   -> Set
-  
+
 Driver {I}{J} Sync Hi Lo =
   forall i j -> Sync i j ->     -- whenever we're in sync,
   (c : Shape Hi i) ->           -- we can take a high-level command
@@ -343,7 +459,7 @@ SCRIPT {I} C = FreeIx C (\ _ -> One) <! ScriptR / ScriptN where
   ScriptR i cs = {!!}
   ScriptN : (i : I)(c : FreeIx C (\ _ -> One) i) -> ScriptR i c -> I
   ScriptN i cs rs = {!!}
-  
+
 unscript : forall {I}{X : I -> Set}(C : I => I) ->
            [ IC (SCRIPT C) X -:> FreeIx C X ]
 unscript {I}{X} C (c , k) = help c k where
@@ -512,7 +628,7 @@ runCP (i , h , cp)  | do c   = right
 
 {- 4.10 To complete the main program, fill in the starting
    CPState and its associated handle information. -}
-   
+
 main : IO One
 main = mainLoop runCP \ src trg ->
          {!!} , {!!} , cp src trg
