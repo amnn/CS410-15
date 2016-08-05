@@ -620,7 +620,41 @@ data Checkable (G : Context)  -- the context of typed variables in scope
           -> Checkable G T (rootToHole t's s)  -- in what we're checking
 
 check : (G : Context)(T : HType)(h : HExp (Ref G)) -> Checkable G T h
-check G T h = {!!}
+
+check G T  (var (S  , x)) with hTypeCompare S T
+check G T  (var (.T , x)) | same     = ok (var x)
+check G ._ (var (S  , x)) | diff SnT = err [] (var (S , x))
+
+check G hTwo (val (tt , b)) = ok (val b)
+check G hNat (val (tt , b)) = err [] (val (tt , b))
+check G hTwo (val (ff , n)) = err [] (val (ff , n))
+check G hNat (val (ff , n)) = ok (val n)
+
+check G hTwo (h  +H h₁) = err [] (h +H h₁)
+check G hNat (h  +H h₁) with check G hNat h
+check G hNat (._ +H h₁) | err t's s = err ([]+H h₁ :: t's) s
+check G hNat (._ +H h₁) | ok t with check G hNat h₁
+check G hNat (._ +H ._) | ok t | err t's s = err (termFog ref t +H[] :: t's) s
+check G hNat (._ +H ._) | ok t | ok t₁     = ok (t +H t₁)
+
+check G hNat (h  >=H h₁) = err [] (h >=H h₁)
+check G hTwo (h  >=H h₁) with check G hNat h
+check G hTwo (._ >=H h₁) | err t's s = err ([]>=H h₁ :: t's) s
+check G hTwo (._ >=H h₁) | ok t with check G hNat h₁
+check G hTwo (._ >=H ._) | ok t | err t's s = err (termFog ref t >=H[] :: t's) s
+check G hTwo (._ >=H ._) | ok t | ok t₁     = ok (t >=H t₁)
+
+check G T (ifH h then h₁ else h₂) with check G hTwo h
+check G T (ifH ._ then h₁ else h₂) | err t's s =
+  err (ifH[]then h₁ else h₂ :: t's) s
+check G T (ifH ._ then h₁ else h₂) | ok t with check G T h₁
+check G T (ifH ._ then ._ else h₂) | ok t | err t's s =
+  err (ifH (termFog ref t) then[]else h₂ :: t's) s
+check G T (ifH ._ then ._ else h₂) | ok t | ok t₁ with check G T h₂
+check G T (ifH ._ then ._ else ._) | ok t | ok t₁ | err t's s =
+  err (ifH (termFog ref t) then (termFog ref t₁) else[] :: t's) s
+check G T (ifH ._ then ._ else ._) | ok t | ok t₁ | ok t₂ =
+  ok (ifH t then t₁ else t₂)
 
 -- Now, this isn't quite the whole story, but it's pretty good. We've
 -- guaranteed that
