@@ -335,9 +335,12 @@ THVal hNat = Nat
 -- we have shown you the way with _+H_. think: what can be guaranteed?
 
 data THExp (X : HType -> Set) : HType -> Set where
-  var : forall {T} -> X T -> THExp X T
-  val : forall {T} -> THVal T -> THExp X T
-  _+H_ : THExp X hNat -> THExp X hNat -> THExp X hNat
+  var            : forall {T} -> X T -> THExp X T
+  val            : forall {T} -> THVal T -> THExp X T
+  _+H_           : THExp X hNat -> THExp X hNat -> THExp X hNat
+  _>=H_          : THExp X hNat -> THExp X hNat -> THExp X hTwo
+  ifH_then_else_ : forall {T} -> THExp X hTwo -> THExp X T -> THExp X T -> THExp X T
+
   -- ??? fill in the other two constructs, typed appropriately
   -- (remember that "if then else" can compute values at any type)
 
@@ -371,7 +374,11 @@ infixr 3 _-:>_
 
 eval : {X : HType -> Set} ->
        [ X -:> THVal ] -> [ THExp X -:> THVal ]
-eval g t = {!!}
+eval g (var x)                 = g x
+eval g (val v)                 = v
+eval g (t +H t₁)               = eval g t +N  eval g t₁
+eval g (t >=H t₁)              = eval g t >=2 eval g t₁
+eval g (ifH t then t₁ else t₂) = if (eval g t) then (eval g t₁) else (eval g t₂)
 
 -- Note that the environment is an *index-respecting* function from
 -- variables to values. The index is the type of the variable: you're
