@@ -190,10 +190,60 @@ errorMonad E = record
 -- show that any monad can be adapted to thread some environment information
 -- as well as whatever else it already managed
 
-envMonad : (G : Set){M : Set -> Set} -> Monad M ->
-           Monad \ V -> G -> M V      -- "computation in an environment"
-envMonad G MM = {!!} where
-  open Monad MM
+envMonad :
+     (G : Set){M : Set -> Set}
+  ->  Monad M
+  ->  Monad \ V -> G -> M V      -- "computation in an environment"
+
+envMonad G {M} MM = record
+  { return = \ x _     -> return x
+  ; _>>=_  = \ m f env -> m env >>= flip f env
+  ; law1   = \ x f     -> ext (Left-Identity-Law-[PW] x f)
+  ; law2   = \ m       -> ext (Right-Identity-Law-[PW] m)
+  ; law3   = \ f g m   -> ext (Associativity-Law-[PW] f g m)
+  } where
+    open Monad MM
+
+    flip :
+         forall {j k l}
+         {A : Set j}
+         {B : Set k}
+         {C : Set l}
+      -> (A -> B -> C)
+      ->  B
+      ->  A
+      ->  C
+    flip f b a = f a b
+
+    Left-Identity-Law-[PW] :
+      forall {X Y}
+      -> (x   : X)
+      -> (f   : X -> G -> M Y)
+      -> (env : G)
+      ->  return x >>= flip f env
+      ==  f x env
+
+    Left-Identity-Law-[PW] x f env = law1 x (flip f env)
+
+    Right-Identity-Law-[PW] :
+         forall {X}
+      -> (m   : G -> M X)
+      -> (env : G)
+      ->  m env >>= return
+      ==  m env
+
+    Right-Identity-Law-[PW] m env = law2 (m env)
+
+    Associativity-Law-[PW] :
+         forall {X Y Z}
+      -> (f   : X -> G -> M Y)
+      -> (g   : Y -> G -> M Z)
+      -> (m   : G -> M X)
+      -> (env : G)
+      -> (m env >>= flip f env) >>= flip g env
+      ==  m env >>= \ x -> f x env >>= flip g env
+
+    Associativity-Law-[PW] f g m env = law3 (flip f env) (flip g env) (m env)
 
 ----------------------------------------------------------------------------
 -- ??? 3.4 interpreting Hutton's Razor                        (score: ? / 3)
