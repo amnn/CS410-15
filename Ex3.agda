@@ -255,6 +255,8 @@ envMonad G {M} MM = record
 -- Ensure that the condition in an "if" is a Boolean, not a number.
 
 data InterpretError : Set where
+  NatTyError : InterpretError
+  TwoTyError : InterpretError
 
 -- helpful things to build
 
@@ -265,21 +267,23 @@ Compute : Set{- variables -} -> Set{- values -} -> Set
 Compute X V = Env X -> V + InterpretError  -- how to compute a V
 
 computeMonad : {X : Set} -> Monad (Compute X)
-computeMonad = {!!}  -- build this from the above parts
+computeMonad {X} = envMonad (Env X) (errorMonad InterpretError)
 
 -- This operation should explain how to get the value of a variable
 -- from the environment.
 varVal : {X : Set} -> X -> Compute X HVal
-varVal x = {!!}
+varVal x env = tt , env x
 
 -- These operations should ensure that you get the sort of value
 -- that you want, in order to ensure that you don't do bogus
 -- computation.
 mustBeNat : {X : Set} -> HVal -> Compute X Nat
-mustBeNat v = {!!}
+mustBeNat (tt , b) _ = ff , NatTyError
+mustBeNat (ff , n) _ = tt , n
 
 mustBeTwo : {X : Set} -> HVal -> Compute X Two
-mustBeTwo v = {!!}
+mustBeTwo (tt , b) _ = tt , b
+mustBeTwo (ff , n) _ = ff , TwoTyError
 
 -- Now, you're ready to go. Don't introduce the environment explicitly.
 -- Use the monad to thread it.
@@ -288,7 +292,23 @@ interpret : {X : Set} -> HExp X -> Compute X HVal
 interpret {X} = go where
   open Monad (computeMonad {X})
   go : HExp X -> Compute X HVal
-  go t = {!!}
+
+  go (var x) = varVal x
+  go (val v) = return v
+
+  go (t +H t₁) =
+    (go t  >>= mustBeNat) >>= \ m ->
+    (go t₁ >>= mustBeNat) >>= \ n ->
+      return (ff , (m +N n))
+
+  go (t >=H t₁) =
+    (go t  >>= mustBeNat) >>= \ m ->
+    (go t₁ >>= mustBeNat) >>= \ n ->
+      return (tt , (m >=2 n))
+
+  go (ifH t then t₁ else t₂) =
+    (go t  >>= mustBeTwo) >>= \ c ->
+      if c then go t₁ else go t₂
 
 
 ----------------------------------------------------------------------------
