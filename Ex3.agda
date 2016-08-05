@@ -431,7 +431,8 @@ Stack (G / S) = Stack G * THVal S
 -- instructions. It's all the same to us!
 
 fetch : {G : Context} -> Stack G -> [ Var G -:> THVal ]
-fetch g v = {!!}
+fetch (rest , t)  top    = t
+fetch (rest , t) (pop v) = fetch rest v
 
 -- An evaluator for expression with more structured variables. We
 -- already know how to evaluate, we just have to explain how to deal
