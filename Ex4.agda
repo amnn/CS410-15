@@ -270,25 +270,32 @@ ERROR SafeMessage = ErrorC SafeMessage <! ErrorR / errorNext
 CPState : Set
 CPState = WriteState * ReadState
 
+data Error : Set where ReaderErr WriterErr : Error
+SafeErrors : CPState -> Set
+SafeErrors (opened , _)        = Zero
+SafeErrors (closed , opened _) = Zero
+SafeErrors (closed , closed)   = Error
+
+CPInterface : CPState => CPState
+CPInterface = (WRITE <+> READ) =+= ERROR SafeErrors
+
 FinalState : CPState -> Set
 FinalState (opened , _)        = Zero
 FinalState (closed , opened _) = Zero
 FinalState (closed , closed)   = One
 
-CPInterface : CPState => CPState
-CPInterface = (WRITE <+> READ) =+= ERROR FinalState
-
 {- 4.6.2 Secondly, you should implement your copying process, working to your
    interface.
 -}
 
+{-# NO_TERMINATION_CHECK #-}
 cp : (sourceFile targetFile : String) -> IterIx CPInterface FinalState (closed , closed)
 cp sourceFile targetFile =
-  req (reader-open sourceFile)
- (check-reader-open!
- (req (writer-open sourceFile)
- (check-writer-open!
-  make-transfer)))
+   step (do (reader-open sourceFile ,
+   check-reader-open!
+  (step (do (writer-open targetFile ,
+   check-writer-open!
+   make-transfer)))))
   where
     open _=>_ CPInterface
       renaming ( Shape    to C
@@ -297,15 +304,6 @@ cp sourceFile targetFile =
                )
 
     open MonadIx (iterMonadIx CPInterface)
-
-    req :
-         {st  : CPState}
-      -> (cmd : C st)
-      -> (k   : (r : R st cmd) -> IterIx CPInterface FinalState (n st cmd r))
-      ->  IterIx CPInterface FinalState st
-
-    req cmd k = step (do (cmd , k))
-
 
     -- Reader/Writer/Error commands wrapped up in the CPInterface
     reader-open : forall {ws} -> String -> C (ws , closed)
@@ -326,8 +324,8 @@ cp sourceFile targetFile =
     write : forall {st} -> Char -> C (opened , st)
     write c = tt , tt , writeChar c
 
-    throw! : C (closed , closed)
-    throw! = ff , error <>
+    throw! : Error -> C (closed , closed)
+    throw! err = ff , error err
 
     check-reader-open! :
          (forall {eof} -> IterIx CPInterface FinalState (closed , opened eof))
@@ -335,7 +333,7 @@ cp sourceFile targetFile =
       ->  IterIx CPInterface FinalState (closed , rs)
 
     check-reader-open! act (opened eof) = act
-    check-reader-open! act  closed      = req throw! \()
+    check-reader-open! act  closed      = step (do (throw! ReaderErr , \()))
 
     check-writer-open! :
           forall {eof}
@@ -345,22 +343,22 @@ cp sourceFile targetFile =
 
     check-writer-open! act opened = act
     check-writer-open! act closed =
-      req reader-close \ _ ->
-      req throw! \()
+      step (do (reader-close , \ _ ->
+      step (do (throw! WriterErr , \()))))
 
     make-transfer :
          forall {eof}
       -> IterIx CPInterface FinalState (opened , opened eof)
 
     make-transfer {ff} =
-      req read              \ res ->
-      req (write (fst res)) \ _   ->
-      make-transfer
+      step (do (read ,            \ res ->
+      step (do (write (fst res) , \ _   ->
+      make-transfer))))
 
     make-transfer {tt} =
-      req reader-close \ _ ->
-      req writer-close \ _ ->
-      step (ret <>)
+      step (do (reader-close , \ _ ->
+      step (do (writer-close , \ _ ->
+      step (ret <>)))))
 
 {- HINTS
   You will certainly need to build some extra bits and pieces.
