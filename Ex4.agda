@@ -618,11 +618,70 @@ WH closed        = Dull
 -}
 
 HANDLES : CPState -> One -> Set
-HANDLES cps = {!!}
+HANDLES (ws , rs) <> = (WH ws) * (RH rs)
 
 haskellDriver : Driver HANDLES CPInterface (SCRIPT HASKELLIO)
-haskellDriver i j s c = {!!}
 
+haskellDriver (opened , _) <> (wh , rh) (tt , tt , writeChar c) =
+  do (hPutChar wh c , \ _ ->
+  ret <>) ,
+  \ _ -> <> , wh , rh
+
+haskellDriver (opened , _) <> (wh , rh) (tt , tt , closeWrite) =
+  do (hClose wh , \ _ ->
+  ret <>) ,
+  \ _ -> <> , dull , rh
+
+haskellDriver (closed , rs) <> (wh , rh) (tt , tt , openWrite fn) =
+  do (hOpen fn writeMode , \ _ ->
+  ret <>) , sync
+  where
+    sync : (Maybe Handle * One) -> Sg WriteState (\ ws -> WH ws * RH rs)
+    sync (yes wh₁ , <>) = opened , wh₁  , rh
+    sync (no      , <>) = closed , dull , rh
+
+haskellDriver (ws , opened ff) <> (wh , rh) (tt , ff , readChar) =
+  do (hGetChar rh , \ _ ->
+  do (hIsEOF rh   , \ _ ->
+  ret <>)) , sync
+  where
+    sync : Char * Two * One -> (Char * Two) * (WH ws) * Handle
+    sync (c , t , <>) = (c , t) , wh , rh
+
+haskellDriver (ws , opened _)  <> (wh , rh) (tt , ff , closeRead) =
+  do (hClose rh , \ _ -> ret <>) ,
+  \ _ -> <> , wh , dull
+
+haskellDriver (ws , closed)    <> (wh , rh) (tt , ff , openRead fn) =
+  do (hOpen fn readMode , check-eof) , sync
+  where
+    open _=>_ (SCRIPT HASKELLIO) renaming
+      ( Shape    to Cmd
+      ; Position to Resp
+      )
+
+    check-eof : Maybe Handle -> Cmd <>
+    check-eof (yes rh₁) = do (hIsEOF rh₁ , \ _ -> ret <>)
+    check-eof  no       = ret <>
+
+    sync :
+         Sg (Maybe Handle)(\ h? -> Resp <> (check-eof h?))
+      -> Sg ReadState (\ rs -> WH ws * RH rs)
+    sync (yes rh₁ , eof , <>) = opened eof , wh , rh₁
+    sync (no      ,       <>) = closed     , wh , dull
+
+haskellDriver (opened , _)        <> s (ff , error ())
+haskellDriver (closed , opened _) <> s (ff , error ())
+
+haskellDriver (closed , closed)   <> s (ff , error err) =
+  do (hError (msg err) , \()) , sync
+  where
+    msg : Error -> String
+    msg ReaderErr = "Could not open source!"
+    msg WriterErr = "Could not open target!"
+
+    sync : Sg Zero _ -> Sg Zero _
+    sync (() , _)
 
 ---------------------------------------------------------------
 -- Putting it all together
@@ -641,7 +700,7 @@ STATE = Sg CPState \ i ->
    string will do, but perhaps you want more. -}
 
 finalMessage : (i : CPState) -> FinalState i -> String
-finalMessage i x = {!!}
+finalMessage (fst , snd) x = "Copied!"
 
 -- Now, in each state, we will either discover we're done, or
 -- we'll learn the next bunch of Haskell commands to do.
@@ -658,7 +717,7 @@ runCP (i , h , cp)  | do c   = right
 
 main : IO One
 main = mainLoop runCP \ src trg ->
-         {!!} , {!!} , cp src trg
+         (closed , closed) , (dull , dull) , cp src trg
 
 -- Now, to compile this (using Agda 2.4.2.4), grab a terminal and
 -- issue the command
