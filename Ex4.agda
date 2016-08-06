@@ -452,20 +452,49 @@ drive D i j ij (c , k) =
 -}
 
 SCRIPT : forall {I} -> (I => I) -> (I => I)
-SCRIPT {I} C = FreeIx C (\ _ -> One) <! ScriptR / ScriptN where
-  ScriptR : (i : I) -> FreeIx C (\ _ -> One) i -> Set
-  ScriptR i cs = {!!}
-  ScriptN : (i : I)(c : FreeIx C (\ _ -> One) i) -> ScriptR i c -> I
-  ScriptN i cs rs = {!!}
+SCRIPT {I} C = FreeIx C (\ _ -> One) <! ScriptR / ScriptN
+  where
+    open _=>_ C renaming
+      ( Shape    to Cmd
+      ; Position to Resp
+      ; index    to next
+      )
 
-unscript : forall {I}{X : I -> Set}(C : I => I) ->
-           [ IC (SCRIPT C) X -:> FreeIx C X ]
-unscript {I}{X} C (c , k) = help c k where
-  help : {i : I}(c : FreeIx C (\ _ -> One) i)
-         (k : (p : Position (SCRIPT C) i c) ->
-                X (index (SCRIPT C) i c p)) ->
-         FreeIx C X i
-  help cs k = {!!}
+    ScriptR : (i : I) -> FreeIx C (\ _ -> One) i -> Set
+    ScriptR i (ret x) = One
+    ScriptR i (do (cmd , reply)) =
+      Sg (Resp i cmd) \ p ->
+      ScriptR (next i cmd p) (reply p)
+
+    ScriptN : (i : I)(c : FreeIx C (\ _ -> One) i) -> ScriptR i c -> I
+    ScriptN i (ret <>) <> = i
+    ScriptN i (do (cmd , reply)) (resp , rest) =
+      ScriptN (next i cmd resp) (reply resp) rest
+
+unscript :
+      forall {I}
+     {X : I -> Set}
+  -> (C : I => I)
+  -> [ IC (SCRIPT C) X -:> FreeIx C X ]
+
+unscript {I}{X} C (c , k) = help c k
+  where
+    open _=>_ (SCRIPT C) renaming
+      ( Shape    to Cmd
+      ; Position to Rsp
+      ; index    to nxt
+      )
+
+    help :
+         {i : I}
+      -> (c : FreeIx C (\ _ -> One) i)
+      -> (k :
+               (p : Rsp i c)
+            ->  X (nxt i c p))
+      ->  FreeIx C X i
+    help (ret x)            k₁ = ret (k₁ <>)
+    help (do (cmd , reply)) k₁ =
+      do (cmd , \ p -> help (reply p) (\ p₁ -> k₁ (p , p₁)))
 
 
 ---------------------------------------------------------------
