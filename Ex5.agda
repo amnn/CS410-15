@@ -68,10 +68,20 @@ WH = Nat * Nat
 
 data Tiling (X : WH -> Set)(wh : WH) : Set where
   ! : X wh -> Tiling X wh
-  joinH : (wl wr : Nat)(wq : wl +N wr == fst wh) ->
-          Tiling X (wl , snd wh) ->  Tiling X (wr , snd wh) -> Tiling X wh
-  joinV : (ht hb : Nat)(hq : ht +N hb == snd wh) ->
-          Tiling X (fst wh , ht) ->  Tiling X (fst wh , hb) -> Tiling X wh
+
+  joinH :
+       (wl wr : Nat)
+    -> (wq    : wl +N wr == fst wh)
+    ->  Tiling X (wl , snd wh)
+    ->  Tiling X (wr , snd wh)
+    ->  Tiling X  wh
+
+  joinV :
+       (ht hb : Nat)
+    -> (hq    : ht +N hb == snd wh)
+    ->  Tiling X (fst wh , ht)
+    ->  Tiling X (fst wh , hb)
+    ->  Tiling X wh
 
 TilingMonadIx : MonadIx Tiling
 TilingMonadIx = record
@@ -99,10 +109,20 @@ open FunctorIx (monadFunctorIx TilingMonadIx)
 
 record PasteKit (X : WH -> Set) : Set where
   field
-    pasteH :  {wh : WH}(wl wr : Nat)(wq : wl +N wr == fst wh) ->
-              X (wl , snd wh) ->  X (wr , snd wh) -> X wh
-    pasteV :  {wh : WH}(ht hb : Nat)(hq : ht +N hb == snd wh) ->
-              X (fst wh , ht) ->  X (fst wh , hb) -> X wh
+    pasteH :
+         {wh : WH}
+      -> (wl wr : Nat)
+      -> (wq : wl +N wr == fst wh)
+      ->  X (wl , snd wh)
+      ->  X (wr , snd wh)
+      -> X wh
+
+    pasteV :
+         {wh : WH}
+      -> (ht hb : Nat)
+      -> (hq : ht +N hb == snd wh)
+      ->  X (fst wh , ht)
+      ->  X (fst wh , hb) -> X wh
 
 -- ??? 5.1 (1 mark)
 -- Show that if you have a PasteKit for X tiles, you can turn a
@@ -112,7 +132,9 @@ paste : forall {X} -> PasteKit X -> [ Tiling X -:> X ]
 paste {X} pk = go where
   open PasteKit pk
   go : [ Tiling X -:> X ]
-  go t = {!!}
+  go (! x) = x
+  go (joinH wl wr wq l r) = pasteH wl wr wq (go l) (go r)
+  go (joinV ht hb hq t b) = pasteV ht hb hq (go t) (go b)
 
 
 ------------------------------------------------------------------------------
@@ -124,11 +146,20 @@ paste {X} pk = go where
 
 record CutKit (X : WH -> Set) : Set where
   field
-    cutH :  {wh : WH}(wl wr : Nat)(wq : wl +N wr == fst wh) ->
-            X wh -> X (wl , snd wh) *  X (wr , snd wh)
-    cutV :  {wh : WH}(ht hb : Nat)(hq : ht +N hb == snd wh) ->
-            X wh -> X (fst wh , ht) *  X (fst wh , hb)
-    
+    cutH :
+         {wh : WH}
+      -> (wl wr : Nat)
+      -> (wq : wl +N wr == fst wh)
+      ->  X wh
+      ->  X (wl , snd wh) *  X (wr , snd wh)
+
+    cutV :
+         {wh : WH}
+      -> (ht hb : Nat)
+      -> (hq : ht +N hb == snd wh)
+      -> X wh
+      -> X (fst wh , ht) *  X (fst wh , hb)
+
 
 ------------------------------------------------------------------------------
 -- MATRICES
@@ -146,24 +177,65 @@ matrixPaste {C} = record
   {  pasteH = mPH
   ;  pasteV = mPV
   }  where
-  mPH : {wh : WH} (wl wr : Nat) -> wl +N wr == fst wh ->
-        Matrix C (wl , snd wh) -> Matrix C (wr , snd wh) -> Matrix C wh
-  mPH wl wr wq ml mr = {!!}
-  mPV : {wh : WH} (ht hb : Nat) -> ht +N hb == snd wh ->
-        Matrix C (fst wh , ht) -> Matrix C (fst wh , hb) -> Matrix C wh
-  mPV ht hb hq mt mb = {!!}
+
+  _<*>_ : forall {n X Y} -> Vec (X -> Y) n -> Vec X n -> Vec Y n
+  _<*>_ = vapp
+  infixl 3 _<*>_
+
+  mPH :
+       {wh : WH}
+    -> (wl wr : Nat)
+    ->  wl +N wr == fst wh
+    ->  Matrix C (wl , snd wh)
+    ->  Matrix C (wr , snd wh)
+    ->  Matrix C wh
+
+  mPH wl wr refl ml mr = vec _+V_ <*> ml <*> mr
+
+
+  mPV :
+       {wh : WH}
+    -> (ht hb : Nat)
+    ->  ht +N hb == snd wh
+    ->  Matrix C (fst wh , ht)
+    ->  Matrix C (fst wh , hb)
+    ->  Matrix C wh
+
+  mPV ht hb refl mt mb = mt +V mb
 
 matrixCut : {C : Set} -> CutKit (Matrix C)
 matrixCut {C} = record
   {  cutH = mCH
   ;  cutV = mCV
   }  where
-  mCH : {wh : WH} (wl wr : Nat) -> wl +N wr == fst wh ->
-        Matrix C wh -> Matrix C (wl , snd wh) * Matrix C (wr , snd wh)
-  mCH wl wr wq m = {!!}
-  mCV : {wh : WH} (ht hb : Nat) -> ht +N hb == snd wh ->
-        Matrix C wh -> Matrix C (fst wh , ht) * Matrix C (fst wh , hb)
-  mCV ht hb hq m = {!!}
+
+  open import Ex2 using (vmap)
+
+  mCH :
+       {wh : WH}
+    -> (wl wr : Nat)
+    ->  wl +N wr == fst wh
+    ->  Matrix C wh
+    ->  Matrix C (wl , snd wh)
+     *  Matrix C (wr , snd wh)
+
+  mCH {.(wl +N wr) , h } wl wr refl m =
+    let
+      split : Vec (Vec C wl * Vec C wr) h
+      split = vmap (chopParts wl wr) m
+    in
+      vmap fst split ,
+      vmap snd split
+
+  mCV :
+       {wh : WH}
+    -> (ht hb : Nat)
+    ->  ht +N hb == snd wh
+    ->  Matrix C wh
+    ->  Matrix C (fst wh , ht)
+     *  Matrix C (fst wh , hb)
+
+  mCV ht hb refl m = chopParts ht hb m
 
 
 ---------------------------------------------------------------------------
