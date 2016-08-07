@@ -719,20 +719,55 @@ data HoleOr (X : WH -> Set)(wh : WH) : Set where
 
 -- Explain how to see through a hole but not through a block
 
-seeThrough : {X : WH -> Set} ->
-             [ HoleOr X -:> Tiling (HoleOr X) -:> Tiling (HoleOr X) ]
-seeThrough hx thx = {!!}
+seeThrough :
+     {X : WH -> Set}
+  -> [ HoleOr X
+  -:>  Tiling (HoleOr X)
+  -:>  Tiling (HoleOr X)
+     ]
+
+seeThrough  hole     thx = thx
+seeThrough (block x) thx = ! (block x)
 
 
 -- Show that if X has a CutKit, then so has HoleOr X. Cutting up holes is
 -- very easy as they don't put up much resistance.
 
 holeCut : {X : WH -> Set} -> CutKit X -> CutKit (HoleOr X)
-holeCut ck = record
-  { cutH = {!!}
-  ; cutV = {!!}
+holeCut {X} ck = record
+  { cutH = cH
+  ; cutV = cV
   }
-  where open CutKit ck
+  where
+    open CutKit ck
+
+    cH :
+         {wh : WH}
+      -> (wl wr : Nat)
+      ->  wl +N wr == fst wh
+      ->  HoleOr X wh
+      ->  HoleOr X (wl , snd wh)
+      *   HoleOr X (wr , snd wh)
+
+    cH wl wr q  hole = hole , hole
+
+    cH wl wr q (block x)
+       with cutH wl wr q x
+    ...| xl , xr = block xl , block xr
+
+    cV :
+         {wh : WH}
+      -> (ht hb : Nat)
+      ->  ht +N hb == snd wh
+      ->  HoleOr X wh
+      ->  HoleOr X (fst wh , ht)
+      *   HoleOr X (fst wh , hb)
+
+    cV ht hb q  hole = hole , hole
+
+    cV ht hb q (block x)
+       with cutV ht hb q x
+    ...| xt , xb = block xt , block xb
 
 
 -- Now, a rectangular layer is a tiling whose pieces are either holes or
