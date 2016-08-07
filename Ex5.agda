@@ -782,10 +782,10 @@ Layer = Tiling (HoleOr (Matrix Cell))
 -- layers by making the back layer visible only through the holes in the front.
 
 layerId : [ Layer ]
-layerId = {!!}
+layerId = ! hole
 
 layerOp : [ Layer -:> Layer -:> Layer ]
-layerOp = super {!!} {!!}
+layerOp = super (holeCut matrixCut) seeThrough
 
 -- I'd ask you to prove that the monoid laws hold (they do), but when I did it,
 -- it was too much of a slog for too few ideas.
@@ -797,7 +797,11 @@ layerOp = super {!!} {!!}
 -- (but who can tell?) spaces on a white background.
 
 background : [ Layer -:> Tiling (Matrix Cell) ]
-background = mapIx {!!}
+background = mapIx fill
+  where
+    fill : [ HoleOr (Matrix Cell) -:> Matrix Cell ]
+    fill  hole     = vec (black - "" // white)
+    fill (block x) = x
 
 
 ---------------------------------------------------------------------------
