@@ -826,7 +826,15 @@ data Change (wh : WH) : Set where
 -- layer. Hint: This, also, is a job for super.
 
 changed : [ Tiling Change -:> Layer -:> Layer ]
-changed = super {!!} {!!}
+changed = super (holeCut matrixCut) update
+  where
+    update :
+      [  Change
+      -:> Layer
+      -:> Layer
+      ]
+    update (new x) _ = x
+    update  old    l = l
 
 
 ---------------------------------------------------------------------------
@@ -853,12 +861,20 @@ record Updata (wh : WH) : Set where
 -- applying the same tag to all tiles.
 
 tagLayer : Two -> [ Layer -:> Tiling Updata ]
-tagLayer u = {!!}
+tagLayer u = mapIx (\ c -> u -: c)
 
 -- Now you should be able to generate a version of "changed" that adds tags.
 
 updata : [ Tiling Change -:> Layer -:> Tiling Updata ]
-updata = {!!}
+updata = super (holeCut matrixCut) update
+  where
+    update :
+      [   Change
+      -:> Layer
+      -:> Tiling Updata
+      ]
+    update (new x) l = tagLayer tt x
+    update  old    l = tagLayer ff l
 
 -- Last but not least, develop the monoid operations for Updata. Here's where
 -- you sort out the logic for displaying changing layers. Content-wise, it should
@@ -868,13 +884,51 @@ updata = {!!}
 -- You will need to build a CutKit in order to use super appropriately.
 
 updataId : [ Tiling Updata ]
-updataId = {!!}
+updataId = ! (ff -: hole)
 
 updataCut : CutKit Updata
-updataCut = {!!}
+updataCut = record
+  { cutH = cH
+  ; cutV = cV
+  } where
+    open CutKit (holeCut (matrixCut {Cell}))
+
+    cH :
+         {wh : WH}
+      -> (wl wr : Nat)
+      ->  wl +N wr == fst wh
+      ->  Updata wh
+      ->  Updata (wl , snd wh)
+      *   Updata (wr , snd wh)
+    cH wl wr wq (u -: x)
+       with cutH wl wr wq x
+    ...| cl , cr = (u -: cl) , (u -: cr)
+
+    cV :
+         {wh : WH}
+      -> (ht hb : Nat)
+      ->  ht +N hb == snd wh
+      ->  Updata wh
+      ->  Updata (fst wh , ht)
+      *   Updata (fst wh , hb)
+    cV ht hb hq (u -: x)
+       with cutV ht hb hq x
+    ...| ct , cb = (u -: ct) , (u -: cb)
 
 updataOp : [ Tiling Updata -:> Tiling Updata -:> Tiling Updata ]
-updataOp = {!!}
+updataOp = super updataCut impose-updata
+  where
+    open Updata
+
+    impose-updata :
+      [   Updata
+      -:> Tiling Updata
+      -:> Tiling Updata
+      ]
+
+    impose-updata (tt -: hole)    t = mapIx (\ u -> tt -: (content u)) t
+    impose-updata (ff -: hole)    t = t
+    impose-updata (uu -: block x) t = ! (uu -: block x)
 
 
 ---------------------------------------------------------------------------
