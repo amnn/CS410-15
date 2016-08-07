@@ -673,10 +673,32 @@ tilingCut {X} ck = record
 super : {X Y Z : WH -> Set} -> CutKit Y ->
        [        X -:> Tiling Y -:> Tiling Z ] ->
        [ Tiling X -:> Tiling Y -:> Tiling Z ]
-super {X}{Y}{Z} ck m = go where
-  open CutKit (tilingCut ck)
-  go : [ Tiling X -:> Tiling Y -:> Tiling Z ]
-  go xt yt = {!!}
+super {X}{Y}{Z} ck m = go
+  where
+    open CutKit (tilingCut ck)
+
+
+    go : [ Tiling X -:> Tiling Y -:> Tiling Z ]
+
+    go (! x) yt = m x yt
+
+    go (joinH wl wr wq xl xr) yt =
+      let
+        cy : Tiling Y (wl , _) * Tiling Y (wr , _)
+        cy = cutH wl wr wq yt
+      in
+        joinH wl wr wq
+          (go xl (fst cy))
+          (go xr (snd cy))
+
+    go (joinV ht hb hq xt xb) yt =
+      let
+        cy : Tiling Y (_ , ht) * Tiling Y (_ , hb)
+        cy = cutV ht hb hq yt
+      in
+        joinV ht hb hq
+          (go xt (fst cy))
+          (go xb (snd cy))
 
 -- HINT: no new recursive operations are needed in the rest of this file.
 -- You've done the hard work. Now get paid.
