@@ -401,8 +401,46 @@ data CutComparable (x x' y y' n : Nat) : Set where
   -- out by discovering what you *need*.
 
   -- YOUR CONSTRUCTORS GO HERE
+  sweet-spot :
+       (cq : x +N x' == n)
+    -> (dq : y +N y' == n)
+    -> (q  : x == y)
+    -> CutComparable x x' y y' n
+
+  cut-near :
+       (cq : x +N x' == n)
+    -> (dq : y +N y' == n)
+    -> (d : Nat)
+    -> (q : x +N d == y)
+    -> CutComparable x x' y y' n
+
+  cut-far :
+       (cq : x +N x' == n)
+    -> (dq : y +N y' == n)
+    -> (d : Nat)
+    -> (q : d +N x' == y')
+    -> CutComparable x x' y y' n
 
 -- The following facts may come in handy.
+
+trans :
+      forall {l}
+  -> {X : Set l}
+  -> {a b c : X}
+  -> (a == b)
+  -> (b == c)
+  -> (a == c)
+trans refl refl = refl
+
+cong :
+      forall {l}
+  -> {X : Set l}
+  -> (P : X -> Set)
+  -> {x y : X}
+  -> (x == y)
+  ->  P x
+  ->  P y
+cong _ refl px = px
 
 sucInject : {m n : Nat} -> suc m == suc n -> m == n
 sucInject refl = refl
@@ -410,13 +448,49 @@ sucInject refl = refl
 sucRespect : {m n : Nat} -> m == n -> suc m == suc n
 sucRespect refl = refl
 
+sucInject* : {m n : Nat} -> (p : Nat) -> p +N m == p +N n -> m == n
+sucInject*  zero   q = q
+sucInject* (suc p) q = sucInject* p (sucInject q)
+
+comm : (m n : Nat) -> m +N n == n +N m
+comm  zero    n      = sym (Monoid.runit +Mon n)
+comm (suc m)  zero   = sucRespect (Monoid.runit +Mon m)
+comm (suc m) (suc n) = sucRespect (trans p₁ (trans p₂ p₃))
+  where
+    p₁ : m +N suc n == suc (n +N m)
+    p₁ = comm m (suc n)
+
+    p₂ : suc (n +N m) == suc (m +N n)
+    p₂ = sucRespect (comm n m)
+
+    p₃ : suc (m +N n) == n +N suc m
+    p₃ = sym (comm n (suc m))
+
 -- ??? 5.3.2 (1 mark)
 -- Show that whenever you have two ways to express the same n as a sum,
 -- you can always deliver the CutComparable evidence.
 
-cutCompare : (x x' y y' n : Nat) -> x +N x' == n -> y +N y' == n ->
-             CutComparable x x' y y' n
-cutCompare x x' y y' n xq yq = {!!}
+cutCompare :
+     (x x' y y' n : Nat)
+  -> x +N x' == n
+  -> y +N y' == n
+  -> CutComparable x x' y y' n
+
+cutCompare zero x' zero y' n xq yq =
+  sweet-spot xq yq refl
+
+cutCompare zero x' (suc y) y' n xq yq =
+  cut-near xq yq (suc y) refl
+
+cutCompare (suc x) x' zero y' n xq yq =
+  cut-far xq yq (suc x) (trans xq (sym yq))
+
+cutCompare (suc x) x' (suc y) y'  zero   () ()
+cutCompare (suc x) x' (suc y) y' (suc n) xq yq
+   with cutCompare x x' y y' n (sucInject xq) (sucInject yq)
+...| sweet-spot _ _   q = sweet-spot xq yq   (sucRespect q)
+...| cut-near   _ _ d q = cut-near   xq yq d (sucRespect q)
+...| cut-far    _ _ d q = cut-far    xq yq d  q
 
 
 -- ??? 5.3.3 (2 marks)
@@ -432,15 +506,157 @@ cutCompare x x' y y' n xq yq = {!!}
 -- Hint: good solutions are likely to use "with" a lot.
 
 tilingCut : {X : WH -> Set} -> CutKit X -> CutKit (Tiling X)
-tilingCut {X} ck = record { cutH = cH ; cutV = cV } where
-  open CutKit ck
-  cH : {wh : WH}(wl wr : Nat)(wq : wl +N wr == fst wh) ->
-       Tiling X wh -> Tiling X (wl , snd wh) * Tiling X (wr , snd wh)
-  cH cwl cwr cq t = {!!}
-  cV : {wh : WH}(ht hb : Nat)(hq : ht +N hb == snd wh) ->
-       Tiling X wh -> Tiling X (fst wh , ht) * Tiling X (fst wh , hb)
-  cV cht chb cq t = {!!}
+tilingCut {X} ck = record
+  { cutH = cH
+  ; cutV = cV
+  } where
+    open CutKit ck
+    cH :
+         {wh : WH}
+      -> (wl wr : Nat)
+      -> (wq : wl +N wr == fst wh)
+      ->  Tiling X wh
+      ->  Tiling X (wl , snd wh)
+      *   Tiling X (wr , snd wh)
 
+    cH {w , h} cwl cwr wq (! x) =
+      let
+        cx : X (cwl , h) * X (cwr , h)
+        cx = cutH cwl cwr wq x
+      in
+        ! (fst cx) , ! (snd cx)
+
+    cH {w , h} cwl cwr cwq (joinH wl wr dwq l r)
+       with cutCompare cwl cwr wl wr w cwq dwq
+
+    ...| sweet-spot cq dq q
+       rewrite q
+             | sucInject* wl (trans cq (sym dq))
+       = l , r
+
+    ...| cut-near cq dq d q =
+      let
+        cl : Tiling X (cwl , h) * Tiling X (d , h)
+        cl = cH cwl d q l
+
+        p₁ : (cwl +N d) +N wr == w
+        p₁ = cong (\ ● -> ● +N wr == w) (sym q) dwq
+
+        p₂ : cwl +N (d +N wr) == (cwl +N d) +N wr
+        p₂ = Monoid.assoc +Mon cwl d wr
+
+        p₃ : cwl +N (d +N wr) == cwl +N cwr
+        p₃ = trans (trans p₂ p₁) (sym cwq)
+
+        qr : d +N wr == cwr
+        qr = sucInject* cwl p₃
+      in
+        fst cl , joinH d wr qr (snd cl) r
+
+    ...| cut-far cq dq d q =
+      let
+        cr : Tiling X (d , h) * Tiling X (cwr , h)
+        cr = cH d cwr q r
+
+        p₁ : wl +N (d +N cwr) == w
+        p₁ = cong (\ ● -> wl +N ● == w) (sym q) dwq
+
+        p₂ : (wl +N d) +N cwr == wl +N (d +N cwr)
+        p₂ = sym (Monoid.assoc +Mon wl d cwr)
+
+        p₃ : (wl +N d) +N cwr == cwl +N cwr
+        p₃ = trans (trans p₂ p₁) (sym cwq)
+
+        ql : wl +N d == cwl
+        ql = sucInject* cwr (trans (trans (comm cwr (wl +N d)) p₃)
+                                   (comm cwl cwr))
+      in
+        joinH wl d ql l (fst cr) , snd cr
+
+    cH {w , h} cwl cwr cwq (joinV ht hb hq  t b) =
+      let
+        ct : Tiling X (cwl , ht) * Tiling X (cwr , ht)
+        ct = cH cwl cwr cwq t
+
+        cb : Tiling X (cwl , hb) * Tiling X (cwr , hb)
+        cb = cH cwl cwr cwq b
+      in
+        (joinV ht hb hq (fst ct) (fst cb)) ,
+        (joinV ht hb hq (snd ct) (snd cb))
+
+
+    cV :
+         {wh : WH}
+      -> (ht hb : Nat)
+      -> (hq : ht +N hb == snd wh)
+      ->  Tiling X wh
+      ->  Tiling X (fst wh , ht)
+      *   Tiling X (fst wh , hb)
+
+    cV {w , h} cht chb cq (! x) =
+      let
+        cx : X (w , cht) * X (w , chb)
+        cx = cutV cht chb cq x
+      in
+        ! (fst cx) , ! (snd cx)
+
+    cV cht chb cq (joinH wl wr wq l r) =
+      let
+        cl : Tiling X (wl , cht) * Tiling X (wl , chb)
+        cl = cV cht chb cq l
+
+        cr : Tiling X (wr , cht) * Tiling X (wr , chb)
+        cr = cV cht chb cq r
+      in
+        (joinH wl wr wq (fst cl) (fst cr)) ,
+        (joinH wl wr wq (snd cl) (snd cr))
+
+    cV {w , h} cht chb chq (joinV ht hb dhq t b)
+       with cutCompare cht chb ht hb h chq dhq
+
+    ...| sweet-spot cq dq q
+       rewrite q
+             | sucInject* ht (trans cq (sym dq))
+       = t , b
+
+    ...| cut-near cq dq d q =
+      let
+        ct : Tiling X (w , cht) * Tiling X (w , d)
+        ct = cV cht d q t
+
+        p₁ : (cht +N d) +N hb == h
+        p₁ = cong (\ ● -> ● +N hb == h) (sym q) dhq
+
+        p₂ : cht +N (d +N hb) == (cht +N d) +N hb
+        p₂ = Monoid.assoc +Mon cht d hb
+
+        p₃ : cht +N (d +N hb) == cht +N chb
+        p₃ = trans (trans p₂ p₁) (sym chq)
+
+        qb : d +N hb == chb
+        qb = sucInject* cht p₃
+      in
+        fst ct , joinV d hb qb (snd ct) b
+
+    ...| cut-far cq dq d q =
+      let
+        cb : Tiling X (w , d) * Tiling X (w , chb)
+        cb = cV d chb q b
+
+        p₁ : ht +N (d +N chb) == h
+        p₁ = cong (\ ● -> ht +N ● == h) (sym q) dhq
+
+        p₂ : (ht +N d) +N chb == ht +N (d +N chb)
+        p₂ = sym (Monoid.assoc +Mon ht d chb)
+
+        p₃ : (ht +N d) +N chb == cht +N chb
+        p₃ = trans (trans p₂ p₁) (sym chq)
+
+        qt : ht +N d == cht
+        qt = sucInject* chb (trans (trans (comm chb (ht +N d)) p₃)
+                                   (comm cht chb))
+      in
+        joinV ht d qt t (fst cb) , snd cb
 
 ---------------------------------------------------------------------------
 -- SUPERIMPOSITION
