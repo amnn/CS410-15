@@ -198,14 +198,24 @@ keystroke k b = allQuiet , b /// refl
 {- You will need to improve substantially on my implementation of the next component,
    whose purpose is to update the window. Mine displays only one line! -}
 render :
-  Nat ** Nat ->        -- height and width of window -- CORRECTION! width and height
-  Nat ** Nat ->        -- first visible row, first visible column
-  Change ** Buffer ->  -- what just happened
-  List Action **       -- how to update screen
-    (Nat ** Nat)       -- new first visible row, first visible column
+     Nat ** Nat       -- Width and Height of Window
+  -> Nat ** Nat       -- First Visible Row, Column
+  -> Change ** Buffer -- The Change
+  -> List Action      -- How to update the screen
+  ** (Nat ** Nat)     -- New First Visible Row, Column
 render _ tl (allQuiet , _) = ([] , tl)
-render _ tl (_ , (_ <[ cz <[ <> ]> cs ]> _))
-  = (goRowCol 0 0 :: sendText (cz <>> cs) :: []) , tl
+render (w , _) tl (_ , (_ <[ cz <[ <> ]> cs ]> _)) =
+  (  goRowCol 0 0
+  :: sendText (pad w (cz <>> cs))
+  :: goRowCol 0 (bwd-len cz)
+  :: []
+  ) , tl
+  where
+    pad : Nat -> List Char -> List Char
+    pad  zero    cs₁       = cs₁
+    pad (suc n)  []        = ' ' :: pad n []
+    pad (suc n) (c :: cs₁) =  c  :: pad n cs₁
+
 {- The editor window gives you a resizable rectangular viewport onto the editor buffer.
    You get told
      the current size of the viewport
