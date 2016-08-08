@@ -134,8 +134,10 @@ keystroke (arrow normal left) (sz <[ cz <: c <[ <> ]> cs ]> ss) =
 
 keystroke (arrow normal left) (sz <: s <[ [] <[ <> ]> cs ]> ss) =
   cursorMove ,
-  (sz <[ [] <[ <> ]> s ]> cs :: ss)
-  /// refl
+  (sz <[ ([] <>< s) <[ <> ]> [] ]> cs :: ss)
+  /// within  (\ ● -> sz  <>> (● :: cs :: ss))
+      turn    s into ([] <>< s) <>> []
+      because sym (firstFishFact [] s)
 
 keystroke (arrow normal up) (sz <: s <[ cz <[ <> ]> cs ]> ss)
    with part (bwd-len cz) [] s
