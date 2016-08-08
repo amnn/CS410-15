@@ -155,17 +155,42 @@ keystroke (arrow normal down) (sz <[ cz <[ <> ]> cs ]> s :: ss)
       turn    s into (cz₁ <>> cs₁)
       because prf
 
+keystroke enter (sz <[ cz <[ <> ]> cs ]> ss) =
+  bigChange ,
+  (sz <: (cz <>> []) <[ [] <[ <> ]> cs ]> ss)
+  /// <>
+
+keystroke delete (sz <[ cz <[ <> ]> c :: cs ]> ss) =
+  lineEdit ,
+  (sz <[ cz <[ <> ]> cs ]> ss)
+  /// refl , refl
+
+keystroke delete (sz <[ cz <[ <> ]> [] ]> s :: ss) =
+  bigChange ,
+  (sz <[ cz <[ <> ]> s ]> ss)
+  /// <>
+
+keystroke backspace (sz <[ cz <: c <[ <> ]> cs ]> ss) =
+  lineEdit ,
+  (sz <[ cz <[ <> ]> cs ]> ss)
+  /// refl , refl
+
+keystroke backspace (sz <: s <[ [] <[ <> ]> cs ]> ss) =
+  bigChange ,
+  (sz <[ [] <>< s <[ <> ]> cs ]> ss)
+  /// <>
+
 keystroke k b = allQuiet , b /// refl
 {- Please expect to need to invent extra functions, e.g., to measure where you
    are, so that up and down arrow work properly. -}
 {- Remember also that you can always overestimate the change by saying bigChange,
    which needs only a trivial proof. But you may find that the display will flicker
    badly if you do. -}
-{- (char c)                 1 mark
-   enter                    2 marks
-   backspace delete         2 marks for the pair
-   left right               2 marks for the pair (with cursorMove change)
-   up down                  2 marks for the pair (with cursorMove change)
+{- [x] (char c)                 1 mark
+   [x] enter                    2 marks
+   [x] backspace delete         2 marks for the pair
+   [x] left right               2 marks for the pair (with cursorMove change)
+   [x] up down                  2 marks for the pair (with cursorMove change)
    -}
 
 
