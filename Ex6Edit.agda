@@ -61,13 +61,10 @@ firstFishFact xz (x :: xs)   = firstFishFact (xz <: x) xs
    contains the same text.
    (1 mark)
 -}
+
 initBuf : List (List Char) -> Buffer
-initBuf ss =
-  [] <[
-  [] <[ <> ]> []
-  ]> []
-{- As you can see, the current version will run, but it always gives the empty
-   buffer, which is not what we want unless the input is empty. -}
+initBuf  []       = [] <[ [] <[ <> ]> [] ]> []
+initBuf (s :: ss) = [] <[ [] <[ <> ]> s  ]> ss
 
 {- Next comes the heart of the editor. You get a keystroke and the current buffer,
    and you have to say what is the new buffer. You also have to say what is the
@@ -95,24 +92,69 @@ infix 2 _///_
 {- Implement the appropriate behaviour for as many keystrokes as you can.
    I have done a couple for you, but I don't promise to have done them
    correctly. -}
+
+bwd-len :
+     forall {X}
+  -> Bwd X
+  -> Nat
+bwd-len  []       = 0
+bwd-len (xs <: x) = suc (bwd-len xs)
+
+part :
+     Nat
+  -> (cz : Bwd  Char)
+  -> (cs : List Char)
+  ->  Sg (Bwd  Char) \ cz₁
+  ->  Sg (List Char) \ cs₁
+  -> (cz <>> cs == cz₁ <>> cs₁)
+part  n      cz  []       = cz , [] , refl
+part  zero   cz (c :: cs) = cz , (c :: cs) , refl
+part (suc n) cz (c :: cs) = part n (cz <: c) cs
+
 keystroke : Key -> (b : Buffer) -> UpdateFrom b
-keystroke (char c)
-  (sz <[
-   cz <[ <> ]> cs
-   ]> ss)
-  = lineEdit ,
-  (sz <[
-   cz <[ <> ]> c :: cs
-   ]> ss)
+keystroke (char c) (sz <[ cz <[ <> ]> cs ]> ss) =
+  lineEdit ,
+  (sz <[ cz <: c <[ <> ]> cs ]> ss)
   /// refl , refl          -- see? same above and below
-keystroke (arrow normal right)
-  (sz <: s <[
-   [] <[ <> ]> cs
-   ]> ss)
-  = cursorMove ,
-  (sz <[ ([] <>< s) <[ <> ]> [] ]> cs :: ss)
-  /// within (\ x -> sz <>> (x :: cs :: ss)) turn s into ([] <>< s) <>> []
-        because sym (firstFishFact [] s)
+
+keystroke (arrow normal right) (sz <[ cz <[ <> ]> c :: cs ]> ss) =
+  cursorMove ,
+  (sz <[ cz <: c <[ <> ]> cs ]> ss)
+  /// refl
+
+keystroke (arrow normal right) (sz <[ cz <[ <> ]> [] ]> s :: ss) =
+  cursorMove ,
+  (sz <: (cz <>> []) <[ [] <[ <> ]> s ]> ss)
+  /// refl
+
+keystroke (arrow normal left) (sz <[ cz <: c <[ <> ]> cs ]> ss) =
+  cursorMove ,
+  (sz <[ cz <[ <> ]> c :: cs ]> ss)
+  /// refl
+
+keystroke (arrow normal left) (sz <: s <[ [] <[ <> ]> cs ]> ss) =
+  cursorMove ,
+  (sz <[ [] <[ <> ]> s ]> cs :: ss)
+  /// refl
+
+keystroke (arrow normal up) (sz <: s <[ cz <[ <> ]> cs ]> ss)
+   with part (bwd-len cz) [] s
+...| cz₁ , cs₁ , prf =
+  cursorMove ,
+  (sz <[ cz₁ <[ <> ]> cs₁ ]> cz <>> cs :: ss)
+  /// within  (\ ● -> sz <>> (● :: (cz <>> cs) :: ss))
+      turn    s into (cz₁ <>> cs₁)
+      because prf
+
+keystroke (arrow normal down) (sz <[ cz <[ <> ]> cs ]> s :: ss)
+   with part (bwd-len cz) [] s
+...| cz₁ , cs₁ , prf =
+  cursorMove ,
+  (sz <: cz <>> cs <[ cz₁ <[ <> ]> cs₁ ]> ss)
+  /// within  (\ ● -> (sz <: cz <>> cs) <>> (● :: ss))
+      turn    s into (cz₁ <>> cs₁)
+      because prf
+
 keystroke k b = allQuiet , b /// refl
 {- Please expect to need to invent extra functions, e.g., to measure where you
    are, so that up and down arrow work properly. -}
