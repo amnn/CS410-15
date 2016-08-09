@@ -200,8 +200,13 @@ keystroke k b = allQuiet , b /// refl
 {- You will need to improve substantially on my implementation of the next component,
    whose purpose is to update the window. Mine displays only one line! -}
 
-cursor : Buffer -> Action
-cursor (sz <[ cz <[ <> ]> _ ]> _) = goRowCol (bwd-len sz) (bwd-len cz)
+cursor : Buffer -> Nat ** Nat
+cursor (sz <[ cz <[ <> ]> _ ]> _) = bwd-len sz , bwd-len cz
+
+_-N_ : Nat -> Nat -> Nat
+m     -N zero  = m
+zero  -N n     = zero
+suc m -N suc n = m -N n
 
 map :
      forall {X Y : Set}
@@ -243,6 +248,33 @@ clip (w , h) (r , c) =
   o take h []
   o drop r
 
+data Boundable : Set where
+  behind : Nat -> Boundable
+  inside : Boundable
+  ahead  : Nat -> Boundable
+
+in-bounds? : (wh rc xy : Nat ** Nat) -> Boundable ** Boundable
+in-bounds? (w , h) (r , c) (x , y) = check h r x , check w c y
+  where
+    check : (sz off pos : Nat) -> Boundable
+    check  zero     zero      pos      = ahead (suc pos)
+    check (suc sz)  zero      zero     = inside
+    check (suc sz)  zero     (suc pos) = check sz zero pos
+    check  _       (suc off)  zero     = behind (suc off)
+    check  sz      (suc off) (suc pos) = check sz off pos
+
+fix-offsets :
+     Nat       ** Nat
+ ->  Boundable ** Boundable
+ ->  Nat       ** Nat
+
+fix-offsets (r , c) (br , bc) = fix-offset r br , fix-offset c bc
+  where
+    fix-offset : Nat -> Boundable -> Nat
+    fix-offset d (behind x) = d -N x
+    fix-offset d  inside    = d
+    fix-offset d (ahead  x) = d +N x
+
 render-lines : List (List Char) -> List Action -> List Action
 render-lines css as = go 0 css
   where
@@ -253,18 +285,49 @@ render-lines css as = go 0 css
       :: sendText cs
       :: go (suc n) css
 
+repaint :
+     (wh rc : Nat ** Nat)
+  ->  Buffer
+  ->  List Action ** (Nat ** Nat)
+
+repaint wh rc buf
+   with cursor buf
+...| x , y with in-bounds? wh rc (x , y)
+...| bxy with fix-offsets rc bxy
+...| r , c =
+  render-lines
+    (clip wh (r , c) (bufText buf))
+    (goRowCol (x -N r) (y -N c) :: [])
+  , (r , c)
+
 render :
      Nat ** Nat       -- Width and Height of Window
   -> Nat ** Nat       -- First Visible Row, Column
   -> Change ** Buffer -- The Change
   -> List Action      -- How to update the screen
   ** (Nat ** Nat)     -- New First Visible Row, Column
-render _ tl (allQuiet , _) = ([] , tl)
-render wh rc (_ , buf) =
-  (  render-lines (clip wh rc (bufText buf)) (
-     cursor buf
-  :: []
-  )) , rc
+
+render _  rc (allQuiet , _)   = ([] , rc)
+
+render (w , h) (r , c) (lineEdit , (sz <[ cz <[ <> ]> cs ]> ss))
+   with cursor (sz <[ cz <[ <> ]> cs ]> ss)
+...| x , y with in-bounds? (w , h) (r , c) (x , y)
+...| inside , inside =
+   (  goRowCol (x -N r) 0
+   :: sendText (take w ' ' (drop c (cz <>> cs)))
+   :: goRowCol (x -N r) (y -N c)
+   :: []
+   ) , (r , c)
+
+...| _ , _ = repaint (w , h) (r , c) (sz <[ cz <[ <> ]> cs ]> ss)
+
+render wh (r , c) (cursorMove , buf)
+   with cursor buf
+...| x , y with in-bounds? wh (r , c) (x , y)
+...| inside , inside = (goRowCol (x -N r) (y -N c) :: []) , (r , c)
+...| _      , _      = repaint wh (r , c) buf
+
+render wh rc (bigChange  , buf) = repaint wh rc buf
 
 {- The editor window gives you a resizable rectangular viewport onto the editor buffer.
    You get told
