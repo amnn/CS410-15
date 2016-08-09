@@ -93,6 +93,7 @@ id x = x
 -- the type of composition can be generalized further
 _o_ : forall {l}{X Y Z : Set l} -> (Y -> Z) -> (X -> Y) -> X -> Z
 (f o g) x = f (g x)
+infixr 9 _o_
 
 _$_ : forall{l}{X Y : Set l} -> (X -> Y) -> X -> Y
 f $ x = f x
@@ -142,4 +143,3 @@ data Colour : Set where
       HaskellSetup.Black HaskellSetup.Red HaskellSetup.Green
       HaskellSetup.Yellow HaskellSetup.Blue HaskellSetup.Magenta
       HaskellSetup.Cyan HaskellSetup.White #-}
-

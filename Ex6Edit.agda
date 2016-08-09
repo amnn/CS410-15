@@ -199,6 +199,60 @@ keystroke k b = allQuiet , b /// refl
 {- EXERCISE 6.3 -}
 {- You will need to improve substantially on my implementation of the next component,
    whose purpose is to update the window. Mine displays only one line! -}
+
+cursor : Buffer -> Action
+cursor (sz <[ cz <[ <> ]> _ ]> _) = goRowCol (bwd-len sz) (bwd-len cz)
+
+map :
+     forall {X Y : Set}
+  -> (X -> Y)
+  ->  List X
+  ->  List Y
+map f  []       = []
+map f (x :: xs) = f x :: map f xs
+
+drop :
+      forall {X : Set}
+   -> Nat
+   -> List X
+   -> List X
+
+drop  n       []       = []
+drop  0       xs       = xs
+drop (suc n) (x :: xs) = drop n xs
+
+take :
+      forall {X : Set}
+   -> Nat
+   -> X
+   -> List X
+   -> List X
+
+take  0      dft  xs       = []
+take (suc n) dft  []       = dft :: take n dft []
+take (suc n) dft (x :: xs) = x   :: take n dft xs
+
+clip :
+     Nat ** Nat
+  -> Nat ** Nat
+  -> List (List Char)
+  -> List (List Char)
+
+clip (w , h) (r , c) =
+    map (take w ' ' o drop c)
+  o take h []
+  o drop r
+
+render-lines : List (List Char) -> List Action -> List Action
+render-lines css as = go 0 css
+  where
+    go : Nat -> List (List Char) -> List Action
+    go _  []         = as
+    go n (cs :: css) =
+         goRowCol n 0
+      :: sendText cs
+      :: go (suc n) css
+
 render :
      Nat ** Nat       -- Width and Height of Window
   -> Nat ** Nat       -- First Visible Row, Column
@@ -206,17 +260,11 @@ render :
   -> List Action      -- How to update the screen
   ** (Nat ** Nat)     -- New First Visible Row, Column
 render _ tl (allQuiet , _) = ([] , tl)
-render (w , _) tl (_ , (_ <[ cz <[ <> ]> cs ]> _)) =
-  (  goRowCol 0 0
-  :: sendText (pad w (cz <>> cs))
-  :: goRowCol 0 (bwd-len cz)
+render wh rc (_ , buf) =
+  (  render-lines (clip wh rc (bufText buf)) (
+     cursor buf
   :: []
-  ) , tl
-  where
-    pad : Nat -> List Char -> List Char
-    pad  zero    cs₁       = cs₁
-    pad (suc n)  []        = ' ' :: pad n []
-    pad (suc n) (c :: cs₁) =  c  :: pad n cs₁
+  )) , rc
 
 {- The editor window gives you a resizable rectangular viewport onto the editor buffer.
    You get told
