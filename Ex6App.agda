@@ -6,7 +6,7 @@ open import CS410-Vec
 open import CS410-Indexed
 open import CS410-Monoid
 open import Ex6AgdaSetup
-open import Ex6Edit using (_<>>_)
+open import Ex6Edit using (_<>>_ ; _-N_)
 open import Ex5
 
 open MonadIx TilingMonadIx
@@ -135,31 +135,31 @@ appMain app s = mainAppLoop (0 , 0 , s) (appHandler app)
 -- A DEMO APPLICATION                                                    --
 ---------------------------------------------------------------------------
 
-sillyChar : Char -> {w h : Nat} -> Layer (w , h)
-sillyChar c = ! (block (vec (vec (green - c / black))))
+-- sillyChar : Char -> {w h : Nat} -> Layer (w , h)
+-- sillyChar c = ! (block (vec (vec (green - c / black))))
 
-sillyApp : Application \ _ -> Char
-sillyApp = record
-  {  handleKey     = \ { (char c) _ -> c ; _ c -> c }
-  ;  handleResize  = \ _ _ c -> c
-  ;  paintMe       = \
-       { {suc (suc w) , suc (suc h)} c ->
-          joinV 1 (suc h) refl
-            (sillyChar c)
-            (joinV h 1 (sym (plusCommFact 1 h))
-              (joinH 1 (suc w) refl (sillyChar c)
-               (joinH w 1 (sym (plusCommFact 1 w)) (sillyChar ' ') (sillyChar c))
-               )
-              (sillyChar c) )
-       ; c -> sillyChar c
-       }
-  ;  cursorMe      = \ _ -> 0 , 0
-  }
+-- sillyApp : Application \ _ -> Char
+-- sillyApp = record
+--   {  handleKey     = \ { (char c) _ -> c ; _ c -> c }
+--   ;  handleResize  = \ _ _ c -> c
+--   ;  paintMe       = \
+--        { {suc (suc w) , suc (suc h)} c ->
+--           joinV 1 (suc h) refl
+--             (sillyChar c)
+--             (joinV h 1 (sym (plusCommFact 1 h))
+--               (joinH 1 (suc w) refl (sillyChar c)
+--                (joinH w 1 (sym (plusCommFact 1 w)) (sillyChar ' ') (sillyChar c))
+--                )
+--               (sillyChar c) )
+--        ; c -> sillyChar c
+--        }
+--   ;  cursorMe      = \ _ -> 0 , 0
+--   }
 
-{- -}
+{- +}
 main : IO One
 main = appMain sillyApp '*'
-{- -}
+{+ -}
 
 
 ---------------------------------------------------------------------------
@@ -183,11 +183,24 @@ compare x y = cutCompare x y y x (x +N y) refl (sym (plusCommFact x y))
 -- you need! I'm not giving marks for these, but they'll be useful in
 -- the next bit.
 
--- cropPadLR : (w h w' : Nat) -> Layer (w , h) -> Layer (w' , h)
--- cropPadLR w h w' p = {!!}
+layerCut : CutKit Layer
+layerCut = tilingCut (holeCut matrixCut)
 
--- cropPadTB : (w h h' : Nat) -> Layer (w , h) -> Layer (w , h')
--- cropPadTB w h h' p = {!!}
+cropPadLR : (w h w' : Nat) -> Layer (w , h) -> Layer (w' , h)
+cropPadLR w h w'          p with compare w w'
+cropPadLR w h .w          p | sweet-spot _ _   refl = p
+cropPadLR w h .(w +N d)   p | cut-near   _ _ d refl = joinH w d refl p (! hole)
+cropPadLR .(d +N w') h w' p | cut-far    _ _ d refl
+   with cutH w' d (comm w' d) p where open CutKit layerCut
+...| p₁ , _ = p₁
+
+cropPadTB : (w h h' : Nat) -> Layer (w , h) -> Layer (w , h')
+cropPadTB w h h'          p with compare h h'
+cropPadTB w h .h          p | sweet-spot _ _ refl = p
+cropPadTB w h .(h +N d)   p | cut-near cq dq d refl = joinV h d refl p (! hole)
+cropPadTB w .(d +N h') h' p | cut-far cq dq d refl
+  with cutV h' d (comm h' d) p where open CutKit layerCut
+...| p₁ , _ = p₁
 
 ---------------------------------------------------------------------------
 -- THE MOVING RECTANGLE                                                  --
@@ -223,28 +236,91 @@ compare x y = cutCompare x y y x (x +N y) refl (sym (plusCommFact x y))
 --
 -- (2 marks, one for key handling, one for painting)
 
--- record RectState : Set where
---   constructor rect
---   field
---     gapL rectW : Nat
---     gapT rectH : Nat
+record RectState : Set where
+  constructor rect
+  field
+    gapL rectW : Nat
+    gapT rectH : Nat
 
--- rectKey : Key -> RectState -> RectState
--- rectKey k s = {!!}
+rectKey : Key -> RectState -> RectState
+rectKey (char 'h') (rect gapL rectW gapT rectH) = rect (gapL -N 1) rectW gapT rectH
+rectKey (char 'j') (rect gapL rectW gapT rectH) = rect gapL rectW (gapT +N 1) rectH
+rectKey (char 'k') (rect gapL rectW gapT rectH) = rect gapL rectW (gapT -N 1) rectH
+rectKey (char 'l') (rect gapL rectW gapT rectH) = rect (gapL +N 1) rectW gapT rectH
+rectKey (char 'H') (rect gapL rectW gapT rectH) = rect gapL (rectW -N 1) gapT rectH
+rectKey (char 'J') (rect gapL rectW gapT rectH) = rect gapL rectW gapT (rectH +N 1)
+rectKey (char 'K') (rect gapL rectW gapT rectH) = rect gapL rectW gapT (rectH -N 1)
+rectKey (char 'L') (rect gapL rectW gapT rectH) = rect gapL (rectW +N 1) gapT rectH
+rectKey  _          s                           = s
 
--- rectApp : Colour -> Application \ _ -> RectState
--- rectApp c = record
---   {  handleKey     = \ k -> rectKey k
---   ;  handleResize  = \ _ _ -> id
---   ;  paintMe = {!!}
---   ;  cursorMe = {!!}
---   } where
---   -- helper functions can go here
+rectApp : Colour -> Application \ _ -> RectState
+rectApp c = record
+  {  handleKey     = \ k -> rectKey k
+  ;  handleResize  = \ _ _ -> id
+  ;  paintMe       = paint
+  ;  cursorMe      = cursor
+  } where
+  rcell : Char -> Cell
+  rcell chr = white - chr / c
 
--- {- -}
--- main : IO One
--- main = appMain (rectApp blue) (rect 10 40 3 15)
--- {- -}
+  vline : {h : Nat} -> Layer (1 , h)
+  vline = ! (block (vec (rcell '|' :: [])))
+
+  hline : {w : Nat} -> Layer (w , 1)
+  hline = ! (block ((vec (rcell '-')) :: []))
+
+  corner : Layer (1 , 1)
+  corner = ! (block ((rcell '+' :: []) :: []))
+
+  inside : [ Layer ]
+  inside = ! (block (vec (vec (rcell ' '))))
+
+  rect-layer : (wh : WH) -> Layer wh
+  rect-layer (0 , _) = ! (block (vec []))
+  rect-layer (_ , 0) = ! (block [])
+
+  rect-layer (1 , 1) = corner
+
+  rect-layer (1 , suc (suc h)) =
+    joinV 1 (suc h) refl corner
+   (joinV h 1 (comm h 1) vline
+                         corner)
+
+  rect-layer (suc (suc w) , 1) =
+    joinH 1 (suc w) refl corner
+   (joinH w 1 (comm w 1) hline
+                        corner)
+
+  rect-layer (suc (suc w), suc (suc h)) =
+    joinV 1 (suc h) refl
+      (joinH 1 (suc w) refl corner
+      (joinH w 1 (comm w 1) hline
+                            corner))
+
+   (joinV h 1 (comm h 1)
+
+     (joinH 1 (suc w) refl vline
+     (joinH w 1 (comm w 1) inside vline))
+
+     (joinH 1 (suc w) refl corner
+     (joinH w 1 (comm w 1) hline
+                           corner)))
+
+  paint : {wh : WH} -> RectState -> Layer wh
+  paint {w , h} (rect gapL rectW gapT rectH) =
+    cropPadTB w (gapT +N rectH) h
+   (cropPadLR (gapL +N rectW) (gapT +N rectH) w
+   (joinV gapT rectH refl (! hole)
+   (joinH gapL rectW refl (! hole)
+   (rect-layer (rectW , rectH)))))
+
+  cursor : RectState -> Nat * Nat
+  cursor (rect gapL rectW gapT rectH) = (gapL +N rectW -N 1) , (gapT +N rectH -N 1)
+
+{- -}
+main : IO One
+main = appMain (rectApp blue) (rect 10 40 3 15)
+{- -}
 
 
 ---------------------------------------------------------------------------
