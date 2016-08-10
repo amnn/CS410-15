@@ -317,10 +317,10 @@ rectApp c = record
   cursor : RectState -> Nat * Nat
   cursor (rect gapL rectW gapT rectH) = (gapL +N rectW -N 1) , (gapT +N rectH -N 1)
 
-{- -}
+{- +}
 main : IO One
 main = appMain (rectApp blue) (rect 10 40 3 15)
-{- -}
+{+ -}
 
 
 ---------------------------------------------------------------------------
@@ -348,24 +348,72 @@ main = appMain (rectApp blue) (rect 10 40 3 15)
 --
 -- (1 mark)
 
--- frontBack : {S T : Nat * Nat -> Set} ->
---   Application S ->
---   Application T ->
---   Application \ wh -> {!!}
--- frontBack appS appT = record
---   { handleKey = {!!}
---   ; handleResize = {!!}
---   ; paintMe = {!!}
---   ; cursorMe = {!!}
---   }
+frontBack :
+     {S T : Nat * Nat -> Set}
+  -> Application S
+  -> Application T
+  -> Application \ wh -> Two * S wh * T wh
+
+frontBack {S} {T} appS appT = record
+  { handleKey    = h-key
+  ; handleResize = h-resize
+  ; paintMe      = paint
+  ; cursorMe     = cursor
+  } where
+    open Application appS
+      renaming ( handleKey    to kS
+               ; handleResize to rS
+               ; paintMe      to pS
+               ; cursorMe     to cS
+               )
+
+    open Application appT
+      renaming ( handleKey to kT
+               ; handleResize to rT
+               ; paintMe to pT
+               ; cursorMe to cT
+               )
+
+    h-key :
+         (k  : Key)
+      -> {wh : Nat * Nat}
+      -> (st : Two * S wh * T wh)
+      ->       Two * S wh * T wh
+
+    h-key (char 's') (b  , s , t) = (caseTwo ff tt b) , s , t
+
+    h-key k (tt , s , t) = tt , kS k s , t
+    h-key k (ff , s , t) = ff , s , kT k t
+
+    h-resize :
+         {w  h  : Nat}
+      -> (w' h' : Nat)
+      -> Two * S (w  , h)  * T (w  , h)
+      -> Two * S (w' , h') * T (w' , h')
+    h-resize w' h' (b , s , t) = b , rS w' h' s , rT w' h' t
+
+    paint :
+         {wh : Nat * Nat}
+      ->  Two * S wh * T wh
+      ->  Layer wh
+    paint (b , s , t) = layerOp (pS s) (pT t)
+    -- I tried flipping the order of the rectangles, and it caused the entire
+    -- thing to hang for some reason...
+
+    cursor :
+         {w h : Nat}
+      -> Two * S (w , h) * T (w , h)
+      -> Nat * Nat
+    cursor (tt , s , _)= cS s
+    cursor (ff , _ , t)= cT t
 
 -- By way of example, let's have a blue rectangle and a red rectangle.
 
-{- -
+{- -}
 main : IO One
 main = appMain (frontBack (rectApp blue) (rectApp red))
-  (inl (rect 10 40 3 15 , rect 20 40 8 15))
-- -}
+  (ff , rect 10 40 3 15 , rect 20 40 8 15)
+{- -}
 
 ---------------------------------------------------------------------------
 -- IF YOU WANT MORE...                                                   --
