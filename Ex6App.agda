@@ -6,8 +6,8 @@ open import CS410-Vec
 open import CS410-Indexed
 open import CS410-Monoid
 open import Ex6AgdaSetup
-open import Ex5Sol
--- open import Ex5
+open import Ex6Edit using (_<>>_)
+open import Ex5
 
 open MonadIx TilingMonadIx
 open FunctorIx (monadFunctorIx TilingMonadIx)
@@ -65,14 +65,19 @@ postulate
 layerMatrix : [ Layer -:> Matrix Cell ]
 layerMatrix p = paste matrixPaste (mapIx fill p) where
   fill : [ HoleOr (Matrix Cell) -:> Matrix Cell ]
-  fill h = {!!}
+  fill  hole     = vec (vec (white - ' ' / black))
+  fill (block x) = x
 
 vecFoldR : {X Y : Set} -> (X -> Y -> Y) -> Y -> {n : Nat} -> Vec X n -> Y
 vecFoldR c n [] = n
 vecFoldR c n (x :: xs) = c x (vecFoldR c n xs)
 
 matrixAction : forall {wh} -> Matrix Cell wh -> List Action
-matrixAction = vecFoldR (vecFoldR {!!} id) []
+matrixAction =
+  vecFoldR (vecFoldR (\ c k acts -> paint-cell c <>> (k acts)) id) []
+  where
+    paint-cell : Cell -> Bwd Action
+    paint-cell (f - c / b) = [] <: fgText f <: bgText b <: sendText (c :: [])
 
 
 ---------------------------------------------------------------------------
@@ -123,7 +128,7 @@ appHandler app (resize w' h') (w , h , s) = (w' , h' , s') , appPaint app s'
 -- Your code turns into a main function, as follows.
 
 appMain : {S : Nat * Nat -> Set} -> Application S -> S (0 , 0) -> IO One
-appMain app s = mainAppLoop (0 , 0 , s) (appHandler app) 
+appMain app s = mainAppLoop (0 , 0 , s) (appHandler app)
 
 
 ---------------------------------------------------------------------------
@@ -178,11 +183,11 @@ compare x y = cutCompare x y y x (x +N y) refl (sym (plusCommFact x y))
 -- you need! I'm not giving marks for these, but they'll be useful in
 -- the next bit.
 
-cropPadLR : (w h w' : Nat) -> Layer (w , h) -> Layer (w' , h)
-cropPadLR w h w' p = {!!}
+-- cropPadLR : (w h w' : Nat) -> Layer (w , h) -> Layer (w' , h)
+-- cropPadLR w h w' p = {!!}
 
-cropPadTB : (w h h' : Nat) -> Layer (w , h) -> Layer (w , h')
-cropPadTB w h h' p = {!!}
+-- cropPadTB : (w h h' : Nat) -> Layer (w , h) -> Layer (w , h')
+-- cropPadTB w h h' p = {!!}
 
 ---------------------------------------------------------------------------
 -- THE MOVING RECTANGLE                                                  --
@@ -218,28 +223,28 @@ cropPadTB w h h' p = {!!}
 --
 -- (2 marks, one for key handling, one for painting)
 
-record RectState : Set where
-  constructor rect
-  field
-    gapL rectW : Nat
-    gapT rectH : Nat
+-- record RectState : Set where
+--   constructor rect
+--   field
+--     gapL rectW : Nat
+--     gapT rectH : Nat
 
-rectKey : Key -> RectState -> RectState
-rectKey k s = {!!}
+-- rectKey : Key -> RectState -> RectState
+-- rectKey k s = {!!}
 
-rectApp : Colour -> Application \ _ -> RectState
-rectApp c = record
-  {  handleKey     = \ k -> rectKey k
-  ;  handleResize  = \ _ _ -> id
-  ;  paintMe = {!!}
-  ;  cursorMe = {!!}
-  } where
-  -- helper functions can go here
+-- rectApp : Colour -> Application \ _ -> RectState
+-- rectApp c = record
+--   {  handleKey     = \ k -> rectKey k
+--   ;  handleResize  = \ _ _ -> id
+--   ;  paintMe = {!!}
+--   ;  cursorMe = {!!}
+--   } where
+--   -- helper functions can go here
 
-{- -
-main : IO One
-main = appMain (rectApp blue) (rect 10 40 3 15)
-- -}
+-- {- -}
+-- main : IO One
+-- main = appMain (rectApp blue) (rect 10 40 3 15)
+-- {- -}
 
 
 ---------------------------------------------------------------------------
@@ -267,16 +272,16 @@ main = appMain (rectApp blue) (rect 10 40 3 15)
 --
 -- (1 mark)
 
-frontBack : {S T : Nat * Nat -> Set} ->
-  Application S ->
-  Application T ->
-  Application \ wh -> {!!}
-frontBack appS appT = record
-  { handleKey = {!!}
-  ; handleResize = {!!}
-  ; paintMe = {!!}
-  ; cursorMe = {!!}
-  }
+-- frontBack : {S T : Nat * Nat -> Set} ->
+--   Application S ->
+--   Application T ->
+--   Application \ wh -> {!!}
+-- frontBack appS appT = record
+--   { handleKey = {!!}
+--   ; handleResize = {!!}
+--   ; paintMe = {!!}
+--   ; cursorMe = {!!}
+--   }
 
 -- By way of example, let's have a blue rectangle and a red rectangle.
 
